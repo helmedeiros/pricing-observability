@@ -1,0 +1,78 @@
+# Filebeat config for the Pricing Decision Platform observability
+# stack (v0.0.1, logs phase). See ADR-0001.
+#
+# Pipeline:
+#   docker container stdout
+#   -> Filebeat docker.autodiscover provider reads /var/lib/docker/containers
+#   -> drop_event filter: keep only ghcr.io/helmedeiros/{markup-svc,traffic-gen,decision-gateway} containers
+#   -> decode_json_fields: parse the application-level JSON line into top-level fields
+#   -> Elasticsearch index platform-logs-YYYY.MM.DD
+#
+# After ingest, Kibana queries land on the index pattern
+# 'platform-logs-*' and filter on the application's structured
+# fields (attrs.correlation_id, attrs.route, attrs.status, etc.)
+# which decode_json_fields elevates to top-level ES mappings.
+#
+# markup-svc emits plain text today (see ADR-0001's NOT-closed list
+# pointing at the markup-svc convergence ADR); decode_json_fields
+# fails gracefully on those lines with add_error_key, so plain-text
+# logs still land in ES under the 'message' field. Structured-field
+# filtering picks up for markup-svc once the convergence ADR ships.
+
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      hints.enabled: false
+      templates:
+        - condition:
+            regexp:
+              container.image: "^ghcr\\.io/helmedeiros/(markup-svc|decision-gateway|traffic-gen)"
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.container.id}/*.log
+
+processors:
+  # Parse the application JSON message into top-level fields.
+  # overwrite_keys: true so attrs.* etc. land at the document root.
+  # add_error_key: true keeps plain-text lines (markup-svc) ingestable;
+  # the error annotation under error.message names the parse failure
+  # without dropping the doc.
+  - decode_json_fields:
+      fields: ["message"]
+      target: ""
+      overwrite_keys: true
+      add_error_key: true
+
+  # Add a service field derived from the container image so Kibana's
+  # service-facet works without a separate parser. The image tag
+  # (:v0.0.1 / :v0.1.4 / :main / :sha-...) is intentionally retained
+  # so log queries can filter by deployed version too.
+  - add_fields:
+      target: platform
+      fields:
+        # 'service' is set by the Filebeat docker decorator from
+        # container.name; this add_fields just declares the namespace
+        # so the field appears in the index template even if no
+        # decorator runs.
+        layer: pricing-decision
+
+output.elasticsearch:
+  hosts: ["elasticsearch:9200"]
+  index: "platform-logs-%{+yyyy.MM.dd}"
+
+setup.template.name: "platform-logs"
+setup.template.pattern: "platform-logs-*"
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+setup.ilm.enabled: false
+
+# Disable Kibana dashboard auto-setup at boot -- the v0.0.1 cookbook
+# walks operators through creating the index pattern manually so
+# they see the structured-field shape. v0.0.2 can ship a saved
+# dashboard pack if operator feedback warrants.
+setup.dashboards.enabled: false
+
+logging.level: info
+logging.to_stderr: true
