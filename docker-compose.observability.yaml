@@ -1,0 +1,77 @@
+# Observability stack for the Pricing Decision Platform.
+# v0.0.1 = logs pipeline only (Filebeat + Elasticsearch + Kibana).
+# Metrics (Prometheus + Grafana) lands in v0.0.2; traces
+# (OTel Collector + Jaeger) lands in v0.0.3.
+#
+# This compose is designed to run ALONGSIDE the platform compose at
+# decision-gateway/docker-compose.yaml. The Filebeat container reads
+# the host's Docker socket via /var/run/docker.sock and tails every
+# container's stdout, then filters to platform containers only by
+# matching the ghcr.io/helmedeiros/{markup-svc,traffic-gen,decision-gateway}
+# image prefix. So the two compose stacks do not need to share a
+# Docker network -- Filebeat reaches the platform via the Docker
+# daemon, not via service-name DNS.
+#
+# Usage:
+#   # Bring the platform up first:
+#   docker compose -f /path/to/decision-gateway/docker-compose.yaml up -d
+#
+#   # Then bring the observability stack up:
+#   docker compose -f docker-compose.observability.yaml up
+#
+#   # Open Kibana at http://localhost:5601
+#   # Create the index pattern 'platform-logs-*'
+#   # Query: attrs.correlation_id : "<some uuid>"
+#
+# Resource footprint: Elasticsearch's JVM heap is the dominant cost.
+# 1 GB heap (-Xms1g -Xmx1g) keeps the dev-machine budget under 2 GB.
+# Production deployments size up + persist data to a real volume.
+# See ADR-0001's Performance section + cookbook for the rationale.
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.4
+    environment:
+      - discovery.type=single-node
+      # Dev-only: disable xpack security so curl + Kibana + Filebeat
+      # connect without TLS cert provisioning. Production gates ES
+      # behind a reverse proxy or enables the full xpack story.
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - cluster.name=pricing-observability
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health | grep -E '\"status\":\"(green|yellow)\"'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.4
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - SERVER_HOST=0.0.0.0
+    ports:
+      - "5601:5601"
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.11.4
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    user: root
+    # --strict.perms=false because the bind-mounted config + sock
+    # often have host-side ownership Filebeat would otherwise refuse.
+    command:
+      - "--strict.perms=false"
+      - "-e"
+    volumes:
+      - ./config/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Filebeat needs read access to container log files for the
+      # docker.autodiscover provider's log paths.
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
