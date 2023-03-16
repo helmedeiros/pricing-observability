@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed — proposes a phased observability stack shipped as a separate `pricing-observability` repo: v0.0.1 wires Filebeat + Elasticsearch + Kibana to ingest the structured JSON stdout that markup-svc, traffic-gen, and decision-gateway already emit (markup-svc plain text gets a follow-up to convert); v0.0.2 adds Prometheus + Grafana for metrics once at least one service ships a `/metrics` endpoint; v0.0.3 adds an OTel Collector + Jaeger (with Elasticsearch as Jaeger's storage backend) for traces once traffic-gen and decision-gateway adopt OTel spans. v0.0.1 is the minimum viable: one operator command brings the stack up next to the existing three-service platform, and Kibana shows logs from all three services filterable by `attrs.correlation_id` so a single request's lifecycle is queryable end-to-end.
+Accepted — `docker-compose.observability.yaml` ships the three v0.0.1 services (Elasticsearch single-node + Kibana on host port 5601 + Filebeat). `config/filebeat.yml` configures the Docker autodiscover provider with an image-prefix filter that admits only `ghcr.io/helmedeiros/{markup-svc,decision-gateway,traffic-gen}` containers, a `decode_json_fields` processor that elevates the application JSON to top-level Elasticsearch fields, and an output writing a daily index `platform-logs-YYYY.MM.DD`. `docs/cookbook/logs-flowing.md` walks operators through bringing both compose stacks up, creating the Kibana index pattern, firing a request through the gateway with a known `X-Correlation-ID`, and watching the line appear in Discover filtered by `attrs.correlation_id`. v0.0.2 (metrics) and v0.0.3 (traces) stay deferred per the phased-rollout decision.
 
 ## Context
 
