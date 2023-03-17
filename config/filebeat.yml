@@ -24,13 +24,17 @@ filebeat.autodiscover:
     - type: docker
       hints.enabled: false
       templates:
+        # Match by Docker image name. The Filebeat docker autodiscover
+        # provider exposes the container image at `docker.container.image`
+        # (the docker namespace) -- NOT `container.image` (which is the
+        # ECS field that's empty during autodiscover template evaluation).
         - condition:
             regexp:
-              container.image: "^ghcr\\.io/helmedeiros/(markup-svc|decision-gateway|traffic-gen)"
+              docker.container.image: "^ghcr\\.io/helmedeiros/(markup-svc|decision-gateway|traffic-gen)"
           config:
             - type: container
               paths:
-                - /var/lib/docker/containers/${data.container.id}/*.log
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
 
 processors:
   # Parse the application JSON message into top-level fields.
