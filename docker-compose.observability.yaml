@@ -75,3 +75,30 @@ services:
       # Filebeat needs read access to container log files for the
       # docker.autodiscover provider's log paths.
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
+
+  # v0.0.2 traces phase (see ADR-0002): OTel Collector ingests OTLP
+  # from platform services and forwards to Jaeger; Jaeger persists
+  # spans in the same Elasticsearch instance the logs phase already
+  # stands up.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.92.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver (platform services send here)
+      - "4318:4318"   # OTLP HTTP receiver (alternative for browsers / curl)
+    depends_on:
+      - jaeger
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.53
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+      - ES_SERVER_URLS=http://elasticsearch:9200
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"   # Jaeger UI

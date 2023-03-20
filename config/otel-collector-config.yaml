@@ -1,0 +1,44 @@
+# OTel Collector config for the Pricing Decision Platform v0.0.2
+# traces phase. See ADR-0002.
+#
+# Pipeline:
+#   platform services -> OTLP gRPC (4317) or HTTP (4318)
+#                     -> Collector
+#                     -> OTLP exporter to jaeger:4317
+#                     -> Jaeger all-in-one writes to Elasticsearch
+#
+# No processors at v0.0.2 (no sampling, no tail_sampling, no
+# attribute filtering). 100% ingest is the dev posture; production
+# adds a tail_sampling processor when trace volume motivates it.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+exporters:
+  otlp:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+# debug exporter writes spans to the Collector's stdout so the
+# operator's `docker logs otel-collector` shows trace flow during
+# the smoke. Useful when the Jaeger side has not lit up yet and
+# the question is "is the Collector receiving spans at all?".
+# Defaults to info verbosity so it's not chatty under steady load.
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp, debug]
+
+  telemetry:
+    logs:
+      level: info
