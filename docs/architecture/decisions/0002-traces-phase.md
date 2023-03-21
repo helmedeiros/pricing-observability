@@ -2,13 +2,13 @@
 
 ## Status
 
-Proposed — proposes the v0.0.2 traces phase from ADR-0001: an OTel Collector container ingests OTLP spans from platform services and exports them to Jaeger, which writes to the existing Elasticsearch instance the v0.0.1 logs phase already stands up. Operators access traces via Jaeger UI on host port 16686. v0.0.2 ships even though only markup-svc emits spans today — `markup-svc/ADR-0009` shipped the OTel span decorator and the binary accepts `--otel-enabled`; per-request spans land in Jaeger as soon as the compose sets the flag + OTLP exporter env vars. decision-gateway and traffic-gen span emission stays as separate per-repo ADRs in those repos.
+Accepted — ships the v0.0.2 traces phase: an OTel Collector container ingests OTLP spans from platform services and exports them to Jaeger, which writes to the existing Elasticsearch instance the v0.0.1 logs phase already stands up. Operators access traces via Jaeger UI on host port 16686. Validated end-to-end against `markup-svc:v0.1.5` which bootstraps the OTLP gRPC exporter via `markup-svc/ADR-0016` — per-request `markup.decider.decide` spans appear in Jaeger UI within seconds of a `/decide` call, with `rule.markup.adapter` / `rule.markup.rule` / `rule.markup.factor` / `rule.markup.correlation_id` attributes per `markup-svc/ADR-0009`. decision-gateway and traffic-gen span emission stays as separate per-repo ADRs in those repos.
 
 ## Context
 
 ADR-0001 named v0.0.2 as the metrics phase and v0.0.3 as the traces phase. The original ordering was metrics-first because none of the three platform services shipped `/metrics` endpoints at the time — Prometheus would scrape nothing useful. But the user's stated near-term goal is **performance investigation of markup-svc and decision-gateway**, and traces are the right tool for that:
 
-- markup-svc already emits per-`Decide` spans via the OTel decorator (ADR-0009 in markup-svc). The exporter side is missing — the compose does not set `--otel-enabled` + `OTEL_EXPORTER_OTLP_ENDPOINT` today, so the spans drop on the floor.
+- markup-svc already emits per-`Decide` spans via the OTel decorator (ADR-0009 in markup-svc). The exporter side is missing — the compose does not set `--otel-enabled` + `OTEL_EXPORTER_OTLP_ENDPOINT` today, and even when it does, the binary in earlier tags ships the decorator only, not the SDK; spans land on the no-op TracerProvider. markup-svc closes that latter gap in its own ADR-0016 / v0.1.5; this ADR consumes that release.
 - Per-rule + per-decorator latency is the question operators actually have when they want to find the bottleneck. Metrics give counts and histograms; traces give the per-request waterfall that shows whether the swap.Decider lock pair or the indexed engine's evaluation is dominant at a given QPS.
 
 So the v0.0.x ordering swaps: traces become v0.0.2; metrics moves to v0.0.3 (and lands once at least one platform service ships `/metrics`). The phased rollout commitment from ADR-0001 holds; the order is repriotized for the user's investigation need.
