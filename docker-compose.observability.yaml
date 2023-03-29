@@ -144,4 +144,6 @@ services:
       - ./config/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
       - ./config/dashboards:/etc/grafana/provisioning/dashboards:ro
     ports:
-      - "3000:3000"   # Grafana UI
+      # 3030 (not 3000) to leave room for the node/react default
+      # dev port which operators commonly run on 3000.
+      - "3030:3000"   # Grafana UI
