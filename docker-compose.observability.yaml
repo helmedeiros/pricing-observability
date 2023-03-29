@@ -142,7 +142,10 @@ services:
     volumes:
       - ./config/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
       - ./config/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
-      - ./config/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Dashboard JSON files live OUTSIDE the provisioning/dashboards
+      # directory (which is where Grafana looks for the provider .yaml
+      # only). The provider config above points options.path here.
+      - ./config/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       # 3030 (not 3000) to leave room for the node/react default
       # dev port which operators commonly run on 3000.
