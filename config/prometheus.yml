@@ -1,0 +1,39 @@
+# Prometheus scrape config for the Pricing Decision Platform.
+# See ADR-0003.
+#
+# Scrapes markup-svc's /metrics endpoint via host.docker.internal
+# (the gateway between the observability compose network and the
+# platform compose network). decision-gateway + traffic-gen do not
+# yet expose /metrics — added as those repos ship their own metric
+# adapters.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  # external_labels are attached to every metric Prometheus stores;
+  # operators federating to a global Prometheus key on platform=...
+  external_labels:
+    platform: pricing-decision
+
+scrape_configs:
+  # markup-svc: exposes /metrics on the same listener as /decide
+  # (port 8080 inside the compose network). Reachable from the
+  # observability stack via host.docker.internal because the
+  # platform compose and observability compose run on separate
+  # Docker networks.
+  - job_name: markup-svc
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:8090"]
+        # Note: targets through the gateway -- /metrics on the
+        # gateway proxies through to markup-svc's /metrics.
+        # Direct markup-svc port (8080) is not exposed on the host;
+        # the gateway forwards / to the proxy which routes /metrics
+        # to markup-svc per the platform compose's --route flag.
+        # If the gateway is not running, this scrape fails;
+        # operators bringing up the observability stack alone see
+        # markup-svc=DOWN in Prometheus until they bring the
+        # platform stack up.
+        labels:
+          service: markup-svc

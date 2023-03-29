@@ -7,6 +7,35 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.3] - 2023-03-29
+
+Metrics phase. Closes the third leg of ADR-0001's logs + traces + metrics triad. Operators now have:
+
+- Per-outcome Decide RPS, p50/p95/p99 latency, error rate + no-match rate at sub-second resolution via Grafana dashboards.
+- Three-datasource Grafana setup (Prometheus + Elasticsearch logs + Jaeger) — one browser tab, three views, pivot from metric spike → log lines → trace IDs without leaving the page.
+- Operators answer "what's been happening over the last hour" without writing PromQL; the starter dashboard surfaces the most-needed signals from markup-svc/ADR-0019.
+
+Validated against markup-svc v0.1.8 which ships the `/metrics` endpoint per its ADR-0019. Closes ADR-0003.
+
+### Added
+
+- `docker-compose.observability.yaml`: two new services.
+  - `prometheus` (image `prom/prometheus:v2.48.1`): binds host port 9090, scrapes via `host.docker.internal:host-gateway` extra-hosts mapping (same pattern the OTel Collector uses for the OTLP receiver). 7-day TSDB retention matches the dev posture; production overrides via a real volume.
+  - `grafana` (image `grafana/grafana:10.2.3`): binds host port 3000, anonymous-admin auth so operators do not need credentials in dev; provisioned at startup with three datasources + the starter dashboard.
+- `config/prometheus.yml`: scrape config targeting `host.docker.internal:8090/metrics` (through the gateway) with `job_name: markup-svc`, scrape interval 15s, `external_labels: platform=pricing-decision`. decision-gateway + traffic-gen targets land as those repos ship their own `/metrics` endpoints.
+- `config/grafana-datasources.yaml`: provisions Prometheus (default), Elasticsearch (logs index `platform-logs-*`), and Jaeger as the three datasources.
+- `config/grafana-dashboards.yaml`: dashboard provider config; `updateIntervalSeconds: 30` so dashboard JSON updates in the file hot-reload; `allowUiUpdates: true` so operators can edit in the UI and export back.
+- `config/dashboards/markup-decide-overview.json`: starter dashboard with four panels — per-outcome Decide RPS (timeseries), per-adapter Decide RPS (timeseries), latency p50/p95/p99 (timeseries), error rate + no-match rate (stat panels with green/yellow/red thresholds).
+- ADR-0003 (Accepted): metrics phase. Three design questions answered: scrape topology — through-gateway vs direct-port (pick through-gateway; matches the platform's hidden-backend posture; ~50µs scrape latency is irrelevant at 15s interval); provisioning files vs UI-driven (pick provisioning files; reproducible from compose, git-reviewable, operators still edit via UI when `allowUiUpdates: true`); starter dashboard scope — minimal vs comprehensive (pick minimal; one dashboard, four panels, all backed by metrics markup-svc actually emits).
+
+### Changed
+
+- ADR-0002 status flipped from Proposed → Accepted in the README index (it was flipped in the ADR file itself in the v0.0.2 release; the index had drifted).
+
+### Resource footprint
+
+Aggregate observability stack jumps from ~4 GB (v0.0.2) to ~4.5 GB (v0.0.3): + Prometheus ~200 MB idle + Grafana ~150 MB idle. Production deployments size up + persist Prometheus's TSDB to a real volume.
+
 ## [0.0.2] - 2023-03-21
 
 Second release. Ships the traces phase from ADR-0001 — reordered ahead of metrics because the operator's near-term goal is markup-svc + decision-gateway performance investigation, and traces are the right tool for that question (per-rule + per-decorator latency in a waterfall view, not Prometheus counters). The observability stack gains an OTel Collector container that ingests OTLP gRPC + HTTP and exports to Jaeger; Jaeger writes to the same Elasticsearch instance the v0.0.1 logs phase already stands up. Operators open Jaeger UI on host port 16686, search service `markup-svc`, and see one `markup.decider.decide` span per `/decide` request with the `rule.markup.*` attributes the markup-svc OTel decorator (ADR-0009 in that repo) emits. Validated end-to-end against markup-svc v0.1.5 which bootstraps the OTel SDK in-binary (its ADR-0016) so `--otel-enabled` on the published image produces real exporting spans.

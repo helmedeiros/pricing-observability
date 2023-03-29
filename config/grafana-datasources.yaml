@@ -1,0 +1,34 @@
+# Grafana datasource provisioning for the Pricing Decision Platform.
+# See ADR-0003.
+#
+# Provisioning files are read at Grafana startup; operators add new
+# datasources here rather than via the UI so the dev posture stays
+# reproducible from compose.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+
+  - name: Elasticsearch (logs)
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    database: "platform-logs-*"
+    jsonData:
+      esVersion: "8.11.4"
+      timeField: "@timestamp"
+      logMessageField: "message"
+      logLevelField: "level"
+    editable: true
+
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    editable: true

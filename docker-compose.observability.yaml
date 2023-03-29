@@ -1,7 +1,7 @@
 # Observability stack for the Pricing Decision Platform.
-# v0.0.1 = logs pipeline only (Filebeat + Elasticsearch + Kibana).
-# Metrics (Prometheus + Grafana) lands in v0.0.2; traces
-# (OTel Collector + Jaeger) lands in v0.0.3.
+# v0.0.1 = logs (Filebeat + Elasticsearch + Kibana).
+# v0.0.2 = traces (OTel Collector + Jaeger w/ ES backend) — see ADR-0002.
+# v0.0.3 = metrics (Prometheus + Grafana) — see ADR-0003.
 #
 # This compose is designed to run ALONGSIDE the platform compose at
 # decision-gateway/docker-compose.yaml. The Filebeat container reads
@@ -102,3 +102,46 @@ services:
       - COLLECTOR_OTLP_ENABLED=true
     ports:
       - "16686:16686"   # Jaeger UI
+
+  # v0.0.3 metrics phase (see ADR-0003): Prometheus scrapes platform
+  # /metrics endpoints (markup-svc v0.1.8+ ships its endpoint via
+  # markup-svc/ADR-0019; decision-gateway + traffic-gen land as their
+  # own per-repo ADRs ship). Grafana provisions Prometheus + ES +
+  # Jaeger as datasources at startup and ships a starter dashboard.
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      # 7-day retention matches the dev posture; production overrides
+      # via a real volume + a sized retention.
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      # markup-svc exposes /metrics on the platform compose network;
+      # Prometheus reaches it via host.docker.internal -> the gateway
+      # which proxies through. Same pattern the OTel Collector uses
+      # for the OTLP receiver.
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    depends_on:
+      - prometheus
+    environment:
+      # Dev-only: skip the login page. Production gates Grafana
+      # behind SSO + a reverse proxy.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_USERS_DEFAULT_THEME=light
+    volumes:
+      - ./config/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml:ro
+      - ./config/grafana-dashboards.yaml:/etc/grafana/provisioning/dashboards/dashboards.yaml:ro
+      - ./config/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3000:3000"   # Grafana UI
