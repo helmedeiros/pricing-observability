@@ -22,3 +22,4 @@ NNNN-short-decision-name.md
 | [0001](0001-observability-stack.md) | Observability stack for the Pricing Decision Platform | ✅ Accepted |
 | [0002](0002-traces-phase.md) | Traces phase — OTel Collector + Jaeger with Elasticsearch storage | ✅ Accepted |
 | [0003](0003-metrics-phase.md) | Metrics phase — Prometheus + Grafana | ✅ Accepted |
+| [0004](0004-kibana-data-view-provisioning.md) | Kibana data-view provisioning via kibana-init container | ✅ Accepted |

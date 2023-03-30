@@ -58,6 +58,22 @@ services:
     ports:
       - "5601:5601"
 
+  # One-shot data-view provisioning. Polls Kibana until /api/status
+  # reports available, then POSTs the bundled saved-objects NDJSON
+  # to /api/saved_objects/_import?overwrite=true so the platform-logs-*
+  # + jaeger-span-* data views appear on every operator's Kibana
+  # without manual setup. Also sets defaultIndex=platform-logs so
+  # Discover opens directly on the logs view. See ADR-0004.
+  kibana-init:
+    image: curlimages/curl:8.5.0
+    depends_on:
+      - kibana
+    restart: "no"
+    volumes:
+      - ./config/kibana-init.sh:/etc/kibana-init/kibana-init.sh:ro
+      - ./config/kibana-saved-objects.ndjson:/etc/kibana-init/saved-objects.ndjson:ro
+    entrypoint: ["/bin/sh", "/etc/kibana-init/kibana-init.sh"]
+
   filebeat:
     image: docker.elastic.co/beats/filebeat:8.11.4
     depends_on:

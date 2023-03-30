@@ -7,6 +7,21 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.4] - 2023-03-30
+
+Kibana data-view provisioning. Closes the operator-friction loop where every `docker compose down -v` wiped the Kibana saved objects and forced the operator to re-create the `platform-logs-*` data view by hand. Two data views land per compose bring-up: `platform-logs-*` (Filebeat-shipped application logs) + `jaeger-span-*` (Jaeger's span storage in ES). The Kibana `defaultIndex` is set to `platform-logs` so Discover opens directly on the logs view. Closes ADR-0004.
+
+### Added
+
+- `config/kibana-saved-objects.ndjson`: two `index-pattern` saved objects (NDJSON, one per line) describing `platform-logs-*` (time field `@timestamp`) and `jaeger-span-*` (time field `startTimeMillis`). Format follows Kibana's export NDJSON so operators customizing a data view via the UI can export it directly into this file.
+- `config/kibana-init.sh`: polls `/api/status` until Kibana reports "available" (up to ~120s for first-boot migration), POSTs the NDJSON via `/api/saved_objects/_import?overwrite=true` (idempotent across restarts), POSTs `defaultIndex=platform-logs` to `/api/kibana/settings`.
+- `docker-compose.observability.yaml`: new `kibana-init` one-shot service (image `curlimages/curl:8.5.0`, ~10 MB, `restart: "no"`). Mounts the script + NDJSON; entrypoint is the script. Steady state: container is "exited" — the cookbook calls this out so operators do not mistake it for a failure.
+- ADR-0004 (Accepted): Kibana data-view provisioning. One design question answered: init container vs operator-side script (pick init container; matches the rest of the platform's compose-driven posture — Filebeat auto-discovers, OTel Collector auto-receives, Grafana auto-provisions, Kibana now does too).
+
+### Resource footprint
+
+`curlimages/curl:8.5.0` is ~10 MB pulled, ~3 MB resident during execution, zero after exit. Negligible delta to the v0.0.3 stack budget.
+
 ## [0.0.3] - 2023-03-29
 
 Metrics phase. Closes the third leg of ADR-0001's logs + traces + metrics triad. Operators now have:

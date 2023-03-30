@@ -1,0 +1,2 @@
+{"attributes":{"title":"platform-logs-*","timeFieldName":"@timestamp"},"coreMigrationVersion":"8.11.4","id":"platform-logs","references":[],"type":"index-pattern","typeMigrationVersion":"8.0.0","version":"1"}
+{"attributes":{"title":"jaeger-span-*","timeFieldName":"startTimeMillis"},"coreMigrationVersion":"8.11.4","id":"jaeger-spans","references":[],"type":"index-pattern","typeMigrationVersion":"8.0.0","version":"1"}
