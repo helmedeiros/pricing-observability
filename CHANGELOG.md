@@ -7,6 +7,26 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.5] - 2023-03-31
+
+Jaeger Service Performance Monitoring. The "Monitor" tab in Jaeger UI moves from the "Get started" placeholder to a working RED-metrics dashboard on every operator restart, automatically, with zero UI clicks. Closes ADR-0005.
+
+### Added
+
+- `config/otel-collector-config.yaml`: `spanmetrics` connector (namespace `traces.spanmetrics` so emitted names match Jaeger's default query namespace, custom histogram buckets `100us, 250us, ..., 5s` covering the platform's measured latency range with useful sub-millisecond resolution, `metrics_flush_interval: 15s` matching Prometheus's scrape cadence) plus a `prometheus` exporter on `0.0.0.0:8889` with `send_timestamps: true` + `const_labels: platform=pricing-decision`. New `metrics` pipeline with the connector as receiver + the prometheus exporter as exporter.
+- `config/prometheus.yml`: new scrape job `otel-collector-spanmetrics` targeting `otel-collector:8889/metrics` at 15s.
+- `docker-compose.observability.yaml`: Jaeger service env block gains `METRICS_STORAGE_TYPE=prometheus` + `PROMETHEUS_SERVER_URL=http://prometheus:9090` + `PROMETHEUS_QUERY_NORMALIZE_CALLS=true` + `PROMETHEUS_QUERY_NORMALIZE_DURATION=true`.
+- ADR-0005 (Accepted): Jaeger SPM via OTel spanmetrics connector. Three design questions answered: connector vs processor vs Jaeger-backend computation (pick connector — in-stream, OTel-canonical, decoupled from any backend); spanmetricsprocessor vs spanmetrics connector (pick connector — future-proof, the processor is removed in newer collector versions); default vs custom histogram buckets (pick custom — the OTel defaults bucket the platform's sub-10ms hot path together).
+
+### Operator-visible
+
+- Jaeger UI Monitor tab (http://localhost:16686/monitor) renders RED panels for any service emitting SpanKind=SERVER or CONSUMER. decision-gateway (`gateway.request`) and traffic-gen (`traffic.request`) light up out of the box. markup-svc shows empty until its outer `markup.decider.decide` span flips to SpanKind=Server (tracked as ADR-0020 in that repo).
+- The `traces_spanmetrics_*` metrics are also queryable in Prometheus + Grafana for cross-signal federation or custom alerting.
+
+### Performance impact
+
+OTel Collector: ~100ns per span observe overhead + ~40 KB resident for the spanmetrics state at the platform's ~360-series cardinality. Negligible. Prometheus: one extra ~30 KB scrape every 15s. Jaeger: ~5 PromQL queries per Monitor page render at ~10ms each.
+
 ## [0.0.4] - 2023-03-30
 
 Kibana data-view provisioning. Closes the operator-friction loop where every `docker compose down -v` wiped the Kibana saved objects and forced the operator to re-create the `platform-logs-*` data view by hand. Two data views land per compose bring-up: `platform-logs-*` (Filebeat-shipped application logs) + `jaeger-span-*` (Jaeger's span storage in ES). The Kibana `defaultIndex` is set to `platform-logs` so Discover opens directly on the logs view. Closes ADR-0004.

@@ -116,6 +116,19 @@ services:
       - SPAN_STORAGE_TYPE=elasticsearch
       - ES_SERVER_URLS=http://elasticsearch:9200
       - COLLECTOR_OTLP_ENABLED=true
+      # Service Performance Monitoring (the Monitor tab in Jaeger UI)
+      # backs against a Prometheus-compatible TSDB. The OTel Collector
+      # spanmetrics connector emits the traces_spanmetrics_* series
+      # Jaeger queries; Prometheus scrapes those from otel-collector:8889
+      # and serves the query. See ADR-0005.
+      - METRICS_STORAGE_TYPE=prometheus
+      - PROMETHEUS_SERVER_URL=http://prometheus:9090
+      # The connector emits Prometheus snake_case names by default
+      # (calls_total, duration_milliseconds_bucket). Jaeger's
+      # SPM-storage handler looks for "traces_spanmetrics_*"; this
+      # matches because the connector uses that namespace prefix.
+      - PROMETHEUS_QUERY_NORMALIZE_CALLS=true
+      - PROMETHEUS_QUERY_NORMALIZE_DURATION=true
     ports:
       - "16686:16686"   # Jaeger UI
 

@@ -1,15 +1,26 @@
-# OTel Collector config for the Pricing Decision Platform v0.0.2
-# traces phase. See ADR-0002.
+# OTel Collector config for the Pricing Decision Platform.
+#
+# v0.0.2 = traces phase (ADR-0002).
+# v0.0.5 = adds the spanmetrics connector (ADR-0005) so Jaeger's
+#          Monitor tab (Service Performance Monitoring / RED metrics)
+#          renders without manual setup. The connector aggregates
+#          spans into Prometheus-shaped histograms; Prometheus
+#          scrapes the Collector's :8889/metrics; Jaeger queries
+#          Prometheus via METRICS_STORAGE_TYPE=prometheus.
 #
 # Pipeline:
 #   platform services -> OTLP gRPC (4317) or HTTP (4318)
-#                     -> Collector
-#                     -> OTLP exporter to jaeger:4317
-#                     -> Jaeger all-in-one writes to Elasticsearch
+#                     -> traces pipeline
+#                          -> OTLP exporter to jaeger:4317
+#                          -> spanmetrics connector
+#                          -> metrics pipeline
+#                               -> prometheus exporter on :8889/metrics
+#                               -> (Prometheus scrapes this)
+#                          -> debug exporter to stdout
 #
-# No processors at v0.0.2 (no sampling, no tail_sampling, no
-# attribute filtering). 100% ingest is the dev posture; production
-# adds a tail_sampling processor when trace volume motivates it.
+# No tail_sampling at v0.0.5 (still 100% ingest). Production deployments
+# add it under the spanmetrics connector so RED metrics still cover
+# the full span flow even when only a sample reaches Jaeger storage.
 
 receivers:
   otlp:
@@ -19,25 +30,86 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
+# connectors emit metrics derived from spans. The spanmetrics
+# connector ships in otelcol-contrib v0.79+ and replaces the older
+# spanmetricsprocessor. It generates:
+#
+#   - traces_spanmetrics_calls_total (counter -- the RED 'R' + 'E')
+#   - traces_spanmetrics_duration_milliseconds_bucket/sum/count
+#     (histogram -- the RED 'D')
+#
+# Labels: service_name, span_name, span_kind, status_code. These are
+# exactly what Jaeger's Monitor tab queries when METRICS_STORAGE_TYPE
+# is prometheus.
+connectors:
+  spanmetrics:
+    # namespace prefixes every emitted metric so the bare names
+    # 'calls_total' / 'duration_milliseconds_*' become
+    # 'traces_spanmetrics_calls_total' /
+    # 'traces_spanmetrics_duration_milliseconds_*' -- which is
+    # what Jaeger v1.53's SPM-storage handler queries by default
+    # when METRICS_STORAGE_TYPE=prometheus.
+    namespace: traces.spanmetrics
+    # Histogram buckets matching the platform's measured latency
+    # range (per the cross-service trace work, requests run 100us
+    # to ~10ms at the gateway level; engine work 10-100us). Custom
+    # buckets at the sub-ms range so Jaeger's Monitor latency view
+    # actually distinguishes p50 from p99 instead of bucketing
+    # everything into 0-5ms.
+    histogram:
+      explicit:
+        buckets:
+          [100us, 250us, 500us, 1ms, 2ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s]
+    # Metric flush cadence. 15s matches Prometheus's scrape interval
+    # so each scrape sees a fresh batch.
+    metrics_flush_interval: 15s
+
 exporters:
   otlp:
     endpoint: jaeger:4317
     tls:
       insecure: true
 
-# debug exporter writes spans to the Collector's stdout so the
-# operator's `docker logs otel-collector` shows trace flow during
-# the smoke. Useful when the Jaeger side has not lit up yet and
-# the question is "is the Collector receiving spans at all?".
-# Defaults to info verbosity so it's not chatty under steady load.
+  # prometheus exporter exposes the spanmetrics-generated metrics
+  # on :8889/metrics. The pricing-observability Prometheus container
+  # scrapes this endpoint per its config/prometheus.yml. The
+  # exporter ships with otelcol-contrib (not the minimal otelcol).
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # send_timestamps=true so the timestamp on each Prometheus
+    # sample reflects when the span was OBSERVED (not when scrape
+    # happened). Helps Jaeger's Monitor tab align time windows
+    # with the trace list.
+    send_timestamps: true
+    # const_labels stamp every exported metric with platform=
+    # pricing-decision so federation to a multi-cluster Prometheus
+    # works without re-labeling.
+    const_labels:
+      platform: pricing-decision
+
+  # debug exporter writes spans to the Collector's stdout so the
+  # operator's `docker logs otel-collector` shows trace flow during
+  # the smoke. Useful when the Jaeger side has not lit up yet and
+  # the question is "is the Collector receiving spans at all?".
+  # Defaults to basic verbosity so it's not chatty under steady load.
   debug:
     verbosity: basic
 
 service:
   pipelines:
+    # Traces flow: in via OTLP, out to Jaeger via OTLP + debug stdout
+    # + fed into the spanmetrics connector for the metrics pipeline.
     traces:
       receivers: [otlp]
-      exporters: [otlp, debug]
+      exporters: [otlp, debug, spanmetrics]
+
+    # Metrics flow: spanmetrics connector emits, prometheus exporter
+    # exposes on :8889/metrics. The receivers entry uses the
+    # connector-as-receiver form (the connector implements both the
+    # exporter and receiver interfaces).
+    metrics:
+      receivers: [spanmetrics]
+      exporters: [prometheus]
 
   telemetry:
     logs:
