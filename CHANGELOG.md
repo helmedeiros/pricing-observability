@@ -7,6 +7,20 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.6] - 2024-03-08
+
+Jaeger bumped to 1.55 for first-class SPM spanmetrics-connector support. v0.0.5 left the Monitor tab silently empty because Jaeger 1.53's reader expected a metric-name shape the connector doesn't emit. v1.55 added `PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true` which switches to connector-aware name construction. Closes ADR-0006.
+
+### Changed
+
+- `docker-compose.observability.yaml`: `jaegertracing/all-in-one:1.53` → `:1.55`; Jaeger env block reduced (drop `PROMETHEUS_QUERY_NAMESPACE`; add `PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true`).
+- `config/otel-collector-config.yaml`: spanmetrics connector keeps `namespace: traces.spanmetrics` (was removed during 1.53 debugging; restored).
+- Excess inline comments stripped across the observability configs and the OTel Collector config.
+
+### Operator-visible
+
+Jaeger Monitor tab now populates for markup-svc + decision-gateway. Verified: markup-svc p95 = 96µs at 383 calls/min; decision-gateway p95 = 780µs at 376 calls/min. traffic-gen stays empty by design (only CLIENT spans; not a service entry).
+
 ## [0.0.5] - 2023-03-31
 
 Jaeger Service Performance Monitoring. The "Monitor" tab in Jaeger UI moves from the "Get started" placeholder to a working RED-metrics dashboard on every operator restart, automatically, with zero UI clicks. Closes ADR-0005.

@@ -108,7 +108,7 @@ services:
       - jaeger
 
   jaeger:
-    image: jaegertracing/all-in-one:1.53
+    image: jaegertracing/all-in-one:1.55
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -116,21 +116,13 @@ services:
       - SPAN_STORAGE_TYPE=elasticsearch
       - ES_SERVER_URLS=http://elasticsearch:9200
       - COLLECTOR_OTLP_ENABLED=true
-      # Service Performance Monitoring (the Monitor tab in Jaeger UI)
-      # backs against a Prometheus-compatible TSDB. The OTel Collector
-      # spanmetrics connector emits the traces_spanmetrics_* series
-      # Jaeger queries; Prometheus scrapes those from otel-collector:8889
-      # and serves the query. See ADR-0005.
       - METRICS_STORAGE_TYPE=prometheus
       - PROMETHEUS_SERVER_URL=http://prometheus:9090
-      # The connector emits Prometheus snake_case names by default
-      # (calls_total, duration_milliseconds_bucket). Jaeger's
-      # SPM-storage handler looks for "traces_spanmetrics_*"; this
-      # matches because the connector uses that namespace prefix.
+      - PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true
       - PROMETHEUS_QUERY_NORMALIZE_CALLS=true
       - PROMETHEUS_QUERY_NORMALIZE_DURATION=true
     ports:
-      - "16686:16686"   # Jaeger UI
+      - "16686:16686"
 
   # v0.0.3 metrics phase (see ADR-0003): Prometheus scrapes platform
   # /metrics endpoints (markup-svc v0.1.8+ ships its endpoint via
@@ -146,6 +138,10 @@ services:
       # via a real volume + a sized retention.
       - "--storage.tsdb.retention.time=7d"
       - "--web.enable-lifecycle"
+      # Log every PromQL query so operators can see what Jaeger's
+      # Monitor tab + Grafana actually ask Prometheus for. Routed to
+      # the container's stderr so 'docker logs prometheus' captures it.
+      - "--log.level=info"
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:

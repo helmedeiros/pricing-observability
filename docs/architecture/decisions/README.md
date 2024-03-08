@@ -24,3 +24,4 @@ NNNN-short-decision-name.md
 | [0003](0003-metrics-phase.md) | Metrics phase — Prometheus + Grafana | ✅ Accepted |
 | [0004](0004-kibana-data-view-provisioning.md) | Kibana data-view provisioning via kibana-init container | ✅ Accepted |
 | [0005](0005-jaeger-spm-spanmetrics-connector.md) | Jaeger Service Performance Monitoring via OTel spanmetrics connector | ✅ Accepted |
+| [0006](0006-jaeger-bump-to-1.55.md) | Bump Jaeger to 1.55 for SPM spanmetrics-connector support | ✅ Accepted |
