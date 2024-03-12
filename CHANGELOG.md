@@ -7,6 +7,24 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.7] - 2024-03-12
+
+Jaeger System Architecture tab now populates. The graph reads from a `jaeger-dependencies-*` index produced by the `jaeger-spark-dependencies` batch job; without that job the tab shows "No service dependencies found". Closes ADR-0007.
+
+### Added
+
+- `config/spark-deps-loop.sh`: small sh loop that pins `DATE=today` + the storage env then invokes the image entrypoint, sleeping `INTERVAL` (default 120 s) between runs.
+- `docker-compose.observability.yaml`: new `spark-dependencies` service (image `ghcr.io/jaegertracing/spark-dependencies/spark-dependencies:latest`) with the loop wrapper as entrypoint.
+- ADR-0007 (Accepted).
+
+### Operator-visible
+
+System Architecture renders 5 edges out of the box: traffic-gen → decision-gateway → markup-svc plus two self-edges (each service calling itself within the same trace, which is technically correct).
+
+### Resource footprint
+
+Spark process is ~500 MB RAM at startup, ~10-15 s per run on dev volumes; idle ~85% of the time between 120-s ticks.
+
 ## [0.0.6] - 2024-03-08
 
 Jaeger bumped to 1.55 for first-class SPM spanmetrics-connector support. v0.0.5 left the Monitor tab silently empty because Jaeger 1.53's reader expected a metric-name shape the connector doesn't emit. v1.55 added `PROMETHEUS_QUERY_SUPPORT_SPANMETRICS_CONNECTOR=true` which switches to connector-aware name construction. Closes ADR-0006.
