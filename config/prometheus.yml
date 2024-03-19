@@ -10,10 +10,11 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
-  # external_labels are attached to every metric Prometheus stores;
-  # operators federating to a global Prometheus key on platform=...
   external_labels:
     platform: pricing-decision
+
+rule_files:
+  - /etc/prometheus/prometheus-rules.yml
 
 scrape_configs:
   # markup-svc: exposes /metrics on the same listener as /decide

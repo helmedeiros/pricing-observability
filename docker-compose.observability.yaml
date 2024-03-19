@@ -158,6 +158,7 @@ services:
       - "--log.level=info"
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro
     ports:
       - "9090:9090"
     extra_hosts:

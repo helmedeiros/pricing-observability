@@ -7,6 +7,19 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.8] - 2024-03-19
+
+Five alerting rules wired into Prometheus. Closes the "we built it all but can't get paged" gap. Alerts visible at http://localhost:9090/alerts; AlertManager routing lands in a follow-up. Closes ADR-0008.
+
+### Added
+
+- `config/prometheus-rules.yml`: two groups, five rules.
+  - `markup-svc`: `MarkupDecideErrorRateHigh` (warning), `MarkupDecideP99Slow` (warning, p99 > 5 ms for 5 m), `MarkupMetricsScrapeDown` (critical, scrape down 2 m).
+  - `platform-spans`: `GatewayRequestErrorRateHigh` (warning), `GatewayRequestP99Slow` (warning, p99 > 5 ms for 10 m).
+- `config/prometheus.yml`: new `rule_files:` directive.
+- `docker-compose.observability.yaml`: mounts the new rules file.
+- ADR-0008.
+
 ## [0.0.7] - 2024-03-12
 
 Jaeger System Architecture tab now populates. The graph reads from a `jaeger-dependencies-*` index produced by the `jaeger-spark-dependencies` batch job; without that job the tab shows "No service dependencies found". Closes ADR-0007.

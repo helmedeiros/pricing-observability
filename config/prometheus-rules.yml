@@ -1,0 +1,56 @@
+groups:
+  - name: markup-svc
+    interval: 30s
+    rules:
+      - alert: MarkupDecideErrorRateHigh
+        expr: sum(rate(markup_decide_total{outcome="error"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: markup-svc
+        annotations:
+          summary: "markup-svc Decide error rate > 0.1/s for 5m"
+          description: "markup_decide_total{outcome=error} rate is {{ $value | printf \"%.3f\" }} req/s. Likely engine fault, guardrails veto storm, or upstream pressure."
+
+      - alert: MarkupDecideP99Slow
+        expr: histogram_quantile(0.99, sum by(le) (rate(markup_decide_duration_seconds_bucket[5m]))) > 0.005
+        for: 5m
+        labels:
+          severity: warning
+          service: markup-svc
+        annotations:
+          summary: "markup-svc Decide p99 > 5ms for 5m"
+          description: "Engine p99 is {{ $value | printf \"%.4f\" }}s. Investigate adapter, rule-set size, or upstream pressure."
+
+      - alert: MarkupMetricsScrapeDown
+        expr: up{job="markup-svc"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: markup-svc
+        annotations:
+          summary: "Prometheus cannot scrape markup-svc /metrics"
+          description: "Target {{ $labels.instance }} has been down for 2m. Check gateway routing for /metrics and that markup-svc is running with --metrics-enabled."
+
+  - name: platform-spans
+    interval: 30s
+    rules:
+      - alert: GatewayRequestErrorRateHigh
+        expr: sum(rate(traces_spanmetrics_calls_total{service_name="decision-gateway",span_kind="SPAN_KIND_SERVER",status_code="STATUS_CODE_ERROR"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: decision-gateway
+        annotations:
+          summary: "decision-gateway server-span error rate > 0.1/s for 5m"
+          description: "gateway.request span error rate is {{ $value | printf \"%.3f\" }}/s. Cross-check gateway.access logs in Kibana for the matching trace_ids."
+
+      - alert: GatewayRequestP99Slow
+        expr: histogram_quantile(0.99, sum by(le) (rate(traces_spanmetrics_duration_milliseconds_bucket{service_name="decision-gateway",span_kind="SPAN_KIND_SERVER"}[5m]))) > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: decision-gateway
+        annotations:
+          summary: "decision-gateway gateway.request p99 > 5ms for 10m"
+          description: "Server-span p99 latency is {{ $value | printf \"%.2f\" }}ms. Investigate upstream pool, h2c flag, or markup-svc engine pressure via Jaeger Monitor."

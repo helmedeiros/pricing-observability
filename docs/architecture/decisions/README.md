@@ -26,3 +26,4 @@ NNNN-short-decision-name.md
 | [0005](0005-jaeger-spm-spanmetrics-connector.md) | Jaeger Service Performance Monitoring via OTel spanmetrics connector | ✅ Accepted |
 | [0006](0006-jaeger-bump-to-1.55.md) | Bump Jaeger to 1.55 for SPM spanmetrics-connector support | ✅ Accepted |
 | [0007](0007-spark-dependencies-job.md) | Periodic jaeger-spark-dependencies job for the Service Graph | ✅ Accepted |
+| [0008](0008-prometheus-alerting-rules.md) | Prometheus alerting rules (first cut) | ✅ Accepted |
