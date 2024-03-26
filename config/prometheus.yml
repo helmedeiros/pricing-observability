@@ -16,6 +16,11 @@ global:
 rule_files:
   - /etc/prometheus/prometheus-rules.yml
 
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   # markup-svc: exposes /metrics on the same listener as /decide
   # (port 8080 inside the compose network). Reachable from the

@@ -190,3 +190,21 @@ services:
       # 3030 (not 3000) to leave room for the node/react default
       # dev port which operators commonly run on 3000.
       - "3030:3000"   # Grafana UI
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    volumes:
+      - ./config/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+
+  alert-sink:
+    image: python:3.12-alpine
+    entrypoint: ["python3", "/etc/alert-sink/alert-sink.py"]
+    volumes:
+      - ./config/alert-sink.py:/etc/alert-sink/alert-sink.py:ro
+    ports:
+      - "9100:9000"

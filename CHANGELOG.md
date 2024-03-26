@@ -7,6 +7,25 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.9] - 2024-03-26
+
+AlertManager + webhook receiver. The five v0.0.8 alerts now have a destination instead of evaluating into a dead-letter UI. Closes ADR-0009.
+
+### Added
+
+- `alertmanager` (`prom/alertmanager:v0.27.0`) — single route → single receiver delivering all alerts to a webhook.
+- `alert-sink` (`python:3.12-alpine`) — ~30-line Python HTTP server that emits one JSON line per alert on stdout (Filebeat picks it up; Kibana queryable as `attrs.msg:"alertmanager.alert"`).
+- `config/alertmanager.yml` — route + receiver + grouping (`alertname, service`).
+- `config/alert-sink.py` — webhook receiver.
+- `config/prometheus.yml` — `alerting.alertmanagers` block pointing at the new container.
+- ADR-0009.
+
+### Operator-visible
+
+- AlertManager UI at http://localhost:9093 — fired alert list, silences, inhibitions.
+- Alert deliveries visible via `docker compose logs alert-sink`.
+- Smoke-tested end-to-end with a synthetic SmokeTest alert posted directly to AlertManager.
+
 ## [0.0.8] - 2024-03-19
 
 Five alerting rules wired into Prometheus. Closes the "we built it all but can't get paged" gap. Alerts visible at http://localhost:9090/alerts; AlertManager routing lands in a follow-up. Closes ADR-0008.
