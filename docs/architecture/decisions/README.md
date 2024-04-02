@@ -28,3 +28,4 @@ NNNN-short-decision-name.md
 | [0007](0007-spark-dependencies-job.md) | Periodic jaeger-spark-dependencies job for the Service Graph | ✅ Accepted |
 | [0008](0008-prometheus-alerting-rules.md) | Prometheus alerting rules (first cut) | ✅ Accepted |
 | [0009](0009-alertmanager-webhook-routing.md) | AlertManager + webhook receiver | ✅ Accepted |
+| [0010](0010-kibana-trace-id-url-template.md) | Kibana attrs.trace_id renders as a clickable Jaeger link | ✅ Accepted |

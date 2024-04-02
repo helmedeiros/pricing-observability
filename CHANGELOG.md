@@ -7,6 +7,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.10] - 2024-04-02
+
+Kibana `attrs.trace_id` renders as a clickable Jaeger link. Operators click a trace ID value in Discover and the matching Jaeger trace opens in a new tab — one click instead of copy/paste. Closes ADR-0010.
+
+### Added
+
+- `config/kibana-saved-objects.ndjson`: `platform-logs` data view's `fieldFormatMap` adds a `url` formatter for `attrs.trace_id` pointing at `http://localhost:16686/trace/{{value}}`. Cell text stays the bare trace ID; the click opens Jaeger in a new tab.
+- `config/kibana-init.sh`: import POST gains retry-with-backoff (up to 20 attempts at 3 s intervals) so a first-boot 503 from the saved-objects API no longer leaves the data view half-provisioned.
+- ADR-0010.
+
 ## [0.0.9] - 2024-03-26
 
 AlertManager + webhook receiver. The five v0.0.8 alerts now have a destination instead of evaluating into a dead-letter UI. Closes ADR-0009.
