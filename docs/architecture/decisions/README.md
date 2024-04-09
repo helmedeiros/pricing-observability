@@ -29,3 +29,4 @@ NNNN-short-decision-name.md
 | [0008](0008-prometheus-alerting-rules.md) | Prometheus alerting rules (first cut) | ✅ Accepted |
 | [0009](0009-alertmanager-webhook-routing.md) | AlertManager + webhook receiver | ✅ Accepted |
 | [0010](0010-kibana-trace-id-url-template.md) | Kibana attrs.trace_id renders as a clickable Jaeger link | ✅ Accepted |
+| [0011](0011-per-service-metrics-scrape.md) | Per-service Prometheus scrape: markup-svc / decision-gateway / traffic-gen | ✅ Accepted |

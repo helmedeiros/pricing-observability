@@ -31,18 +31,25 @@ scrape_configs:
     metrics_path: /metrics
     scrape_interval: 15s
     static_configs:
-      - targets: ["host.docker.internal:8090"]
-        # Note: targets through the gateway -- /metrics on the
-        # gateway proxies through to markup-svc's /metrics.
-        # Direct markup-svc port (8080) is not exposed on the host;
-        # the gateway forwards / to the proxy which routes /metrics
-        # to markup-svc per the platform compose's --route flag.
-        # If the gateway is not running, this scrape fails;
-        # operators bringing up the observability stack alone see
-        # markup-svc=DOWN in Prometheus until they bring the
-        # platform stack up.
+      - targets: ["host.docker.internal:8080"]
         labels:
           service: markup-svc
+
+  - job_name: decision-gateway
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:8090"]
+        labels:
+          service: decision-gateway
+
+  - job_name: traffic-gen
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:9101"]
+        labels:
+          service: traffic-gen
 
   # OTel Collector spanmetrics. The Collector aggregates spans into
   # traces_spanmetrics_calls_total + traces_spanmetrics_duration_milliseconds
