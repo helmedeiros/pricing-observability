@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.11] - 2024-04-09
+
+Per-service Prometheus scrape. The single `markup-svc` job (which routed through the gateway at `:8090/metrics`) splits into three jobs targeting each service's own `/metrics` endpoint. Closes ADR-0011.
+
+### Changed
+
+- `config/prometheus.yml`: jobs `markup-svc` (port 8080), `decision-gateway` (port 8090), `traffic-gen` (port 9101). All three carry `service` labels Grafana panels can slice on.
+
+### Pairs with
+
+decision-gateway/docker-compose.yaml change exposing markup-svc's port 8080, enabling `--metrics-enabled` on the gateway, and enabling `--metrics-listen=:9101` on traffic-gen with port 9101 exposed.
+
 ## [0.0.10] - 2024-04-02
 
 Kibana `attrs.trace_id` renders as a clickable Jaeger link. Operators click a trace ID value in Discover and the matching Jaeger trace opens in a new tab — one click instead of copy/paste. Closes ADR-0010.
