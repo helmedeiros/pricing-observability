@@ -1,0 +1,69 @@
+{
+  "title": "traffic-gen — load shape",
+  "uid": "traffic-gen-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "15s",
+  "time": { "from": "now-15m", "to": "now" },
+  "timezone": "browser",
+  "tags": ["pricing-platform", "traffic-gen"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Target vs achieved QPS",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "trafficgen_target_qps", "legendFormat": "target", "refId": "A" },
+        { "expr": "trafficgen_achieved_qps", "legendFormat": "achieved", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Rate by outcome",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by(outcome) (rate(trafficgen_requests_total[1m]))", "legendFormat": "{{outcome}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Outbound latency — p50 / p95 / p99",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by(le) (rate(trafficgen_request_duration_seconds_bucket[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by(le) (rate(trafficgen_request_duration_seconds_bucket[5m])))", "legendFormat": "p95", "refId": "B" },
+        { "expr": "histogram_quantile(0.99, sum by(le) (rate(trafficgen_request_duration_seconds_bucket[5m])))", "legendFormat": "p99", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Generator deficit",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "trafficgen_target_qps - trafficgen_achieved_qps", "refId": "A" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "yellow", "value": 5 },
+            { "color": "red", "value": 50 }
+          ]}
+        }
+      }
+    }
+  ]
+}

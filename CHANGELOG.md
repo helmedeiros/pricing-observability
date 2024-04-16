@@ -7,6 +7,16 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.12] - 2024-04-16
+
+Per-service Grafana starter dashboards. Operators land on three dashboards in the Pricing Platform folder; the gateway + traffic-gen panels surface the per-service Prometheus signal from v0.0.11 without PromQL fluency. Closes ADR-0012.
+
+### Added
+
+- `config/dashboards/decision-gateway-overview.json` — five panels: RPS by route, RPS by status, p50/p95/p99 latency, 5xx rate, 4xx rate.
+- `config/dashboards/traffic-gen-overview.json` — four panels: target-vs-achieved QPS, rate by outcome, outbound latency, generator deficit (target − achieved).
+- ADR-0012.
+
 ## [0.0.11] - 2024-04-09
 
 Per-service Prometheus scrape. The single `markup-svc` job (which routed through the gateway at `:8090/metrics`) splits into three jobs targeting each service's own `/metrics` endpoint. Closes ADR-0011.
