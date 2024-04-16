@@ -30,3 +30,4 @@ NNNN-short-decision-name.md
 | [0009](0009-alertmanager-webhook-routing.md) | AlertManager + webhook receiver | ✅ Accepted |
 | [0010](0010-kibana-trace-id-url-template.md) | Kibana attrs.trace_id renders as a clickable Jaeger link | ✅ Accepted |
 | [0011](0011-per-service-metrics-scrape.md) | Per-service Prometheus scrape: markup-svc / decision-gateway / traffic-gen | ✅ Accepted |
+| [0012](0012-per-service-dashboards.md) | Per-service Grafana starter dashboards (decision-gateway + traffic-gen) | ✅ Accepted |
