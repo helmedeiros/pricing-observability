@@ -7,6 +7,19 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.14] - 2024-04-23
+
+Tail sampling on the OTel Collector. The 2000 QPS perf run identified Jaeger ES as the platform's saturation point (~10k spans/sec → 429s). Tail sampling drops the Jaeger ingest load to ~1k spans/sec while keeping 100% of errors + 100% of slow traces + 10% probabilistic. SPM Monitor + Grafana panels reading spanmetrics stay exact because the spanmetrics connector still sees every span. Closes ADR-0013.
+
+### Changed
+
+- `config/otel-collector-config.yaml`: traces pipeline splits into two. `traces` (100% raw) feeds the spanmetrics connector + debug. `traces/sampled` runs through `tail_sampling` before exporting to Jaeger.
+- `processors.tail_sampling` block: 10 s decision_wait, 100k trace buffer, policies = errors + slow-traces (>10 ms) + 10% probabilistic.
+
+### Pairs with
+
+The application stack continues to handle 2000 QPS sustained (see PLAN.md latency table); this release only changes what Jaeger storage sees.
+
 ## [0.0.13] - 2024-04-17
 
 CI fix. v0.0.12 tagged before the ADR-0012 entry was staged into `docs/architecture/decisions/README.md`, so `check-adrs` failed on the tag CI. The README index was backfilled in a follow-up commit but the tag stayed pointed at the bad commit. v0.0.13 retags at the fixed commit. Source contents are identical to v0.0.12.

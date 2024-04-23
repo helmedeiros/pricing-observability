@@ -15,6 +15,22 @@ connectors:
           [100us, 250us, 500us, 1ms, 2ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s]
     metrics_flush_interval: 15s
 
+processors:
+  tail_sampling:
+    decision_wait: 10s
+    num_traces: 100000
+    expected_new_traces_per_sec: 5000
+    policies:
+      - name: errors
+        type: status_code
+        status_code: { status_codes: [ERROR] }
+      - name: slow-traces
+        type: latency
+        latency: { threshold_ms: 10 }
+      - name: probabilistic-10pct
+        type: probabilistic
+        probabilistic: { sampling_percentage: 10 }
+
 exporters:
   otlp:
     endpoint: jaeger:4317
@@ -32,9 +48,23 @@ exporters:
 
 service:
   pipelines:
+    # Raw 100% pipeline: every span fans out to spanmetrics (so SPM
+    # stays exact) + debug stdout. No sampling here -- spanmetrics
+    # must see every span for the calls + latency aggregates to be
+    # accurate. See ADR-0013.
     traces:
       receivers: [otlp]
-      exporters: [otlp, debug, spanmetrics]
+      exporters: [spanmetrics, debug]
+
+    # Sampled pipeline to Jaeger storage. tail_sampling buffers
+    # 10s of spans then decides: 100% of errors + 100% of slow traces
+    # (> 10ms) + 10% probabilistic. Drops the rest before they hit
+    # Elasticsearch.
+    traces/sampled:
+      receivers: [otlp]
+      processors: [tail_sampling]
+      exporters: [otlp]
+
     metrics:
       receivers: [spanmetrics]
       exporters: [prometheus]
