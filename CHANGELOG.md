@@ -7,6 +7,10 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.15] - 2024-04-24
+
+CI fix. v0.0.14 tagged before the ADR-0013 entry was staged into `docs/architecture/decisions/README.md`; `check-adrs` failed on the tag CI. Same pattern as v0.0.12 → v0.0.13. Source contents are identical to v0.0.14.
+
 ## [0.0.14] - 2024-04-23
 
 Tail sampling on the OTel Collector. The 2000 QPS perf run identified Jaeger ES as the platform's saturation point (~10k spans/sec → 429s). Tail sampling drops the Jaeger ingest load to ~1k spans/sec while keeping 100% of errors + 100% of slow traces + 10% probabilistic. SPM Monitor + Grafana panels reading spanmetrics stay exact because the spanmetrics connector still sees every span. Closes ADR-0013.
