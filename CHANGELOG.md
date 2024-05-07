@@ -7,6 +7,22 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.16] - 2024-05-07
+
+Alert on rejected hot-reload. markup-svc/ADR-0026 made hot-reload fail closed — bad rules get a 400 with the issue list, the previous (working) rules keep serving. This alert pages the operator within ~90 s of the rejection so the operator-vs-platform discrepancy is caught fast. Closes ADR-0014.
+
+### Added
+
+- `config/prometheus-rules.yml`: new group `admin-changes`, alert `AdminHotReloadRejected`. Expression `sum(increase(gateway_requests_total{method="POST",status="400"}[5m])) > 0` for 1 min. Severity warning, service `decision-gateway`. Annotations point operators at the gateway access log + `/admin/diagnose` for the issue list.
+
+### Operator-visible
+
+Smoke-tested end-to-end: corrupted rules.csv → 3 × POST /admin/reload → 400 each → alert pending → firing in ~70 s → AlertManager batched within group_wait (10 s) → webhook delivered to alert-sink → JSON line on stdout. Total time from rejected reload to operator visibility: < 90 s.
+
+### Pairs with
+
+markup-svc v0.1.16 (ADR-0026 — Diagnose-gated /admin/reload). The alert is the "fast-notify" half of the safety story the gate created.
+
 ## [0.0.15] - 2024-04-24
 
 CI fix. v0.0.14 tagged before the ADR-0013 entry was staged into `docs/architecture/decisions/README.md`; `check-adrs` failed on the tag CI. Same pattern as v0.0.12 → v0.0.13. Source contents are identical to v0.0.14.

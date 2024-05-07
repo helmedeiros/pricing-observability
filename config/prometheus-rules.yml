@@ -54,3 +54,39 @@ groups:
         annotations:
           summary: "decision-gateway gateway.request p99 > 5ms for 10m"
           description: "Server-span p99 latency is {{ $value | printf \"%.2f\" }}ms. Investigate upstream pool, h2c flag, or markup-svc engine pressure via Jaeger Monitor."
+
+  - name: admin-changes
+    interval: 30s
+    rules:
+      # Fires the moment an /admin POST gets rejected with 4xx. This is
+      # the new failure mode introduced by markup-svc/ADR-0026 + ADR-0008
+      # in decision-gateway: hot-reload (markup-svc /admin/reload), hot-
+      # replace (markup-svc /admin/guardrails), or routes-replace (gateway
+      # /admin/routes) was rejected because Diagnose / validation failed
+      # on the new config. Operator intent was clear (someone POSTed);
+      # platform refused. Get a human to the keyboard fast: the
+      # currently-serving config is keeping customers up but the operator
+      # almost certainly thinks the new config is live.
+      - alert: AdminHotReloadRejected
+        # POST 400 on the gateway is almost exclusively a rejected
+        # /admin/reload (markup-svc/ADR-0026 Diagnose gate). /decide
+        # returns 200 on match / 404 on no-match / 5xx on error;
+        # /healthz + /readyz + /metrics are GET. So POST 400 is a
+        # high-signal proxy for "somebody tried to deploy bad config."
+        # The route label would be more precise but is currently
+        # always-empty due to a writer-shadowing bug in the gateway
+        # middleware composition; tracked as a follow-up in
+        # decision-gateway.
+        expr: sum(increase(gateway_requests_total{method="POST",status="400"}[5m])) > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: decision-gateway
+        annotations:
+          summary: "Hot-reload / admin POST rejected — somebody tried to deploy bad config"
+          description: |
+            {{ $value | printf "%.0f" }} POST 400 response(s) in the last 5m. Most likely
+            a markup-svc /admin/reload or /admin/guardrails that failed Diagnose, or a
+            decision-gateway /admin/routes with an invalid route table.
+            Cross-check in Kibana: msg:"gateway.access" AND attrs.path:"/admin/*" AND attrs.status:>=400
+            Re-run GET /admin/diagnose on markup-svc for the issue list.
