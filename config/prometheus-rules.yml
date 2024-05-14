@@ -68,16 +68,7 @@ groups:
       # currently-serving config is keeping customers up but the operator
       # almost certainly thinks the new config is live.
       - alert: AdminHotReloadRejected
-        # POST 400 on the gateway is almost exclusively a rejected
-        # /admin/reload (markup-svc/ADR-0026 Diagnose gate). /decide
-        # returns 200 on match / 404 on no-match / 5xx on error;
-        # /healthz + /readyz + /metrics are GET. So POST 400 is a
-        # high-signal proxy for "somebody tried to deploy bad config."
-        # The route label would be more precise but is currently
-        # always-empty due to a writer-shadowing bug in the gateway
-        # middleware composition; tracked as a follow-up in
-        # decision-gateway.
-        expr: sum(increase(gateway_requests_total{method="POST",status="400"}[5m])) > 0
+        expr: sum(increase(gateway_requests_total{route="/admin",status=~"4.."}[5m])) > 0
         for: 1m
         labels:
           severity: warning

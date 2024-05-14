@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.17] - 2024-05-14
+
+Tighten `AdminHotReloadRejected` now that decision-gateway v0.0.9 fixed the empty-route-label bug.
+
+### Changed
+
+- `config/prometheus-rules.yml`: `AdminHotReloadRejected` expression switches from `gateway_requests_total{method="POST",status="400"}` to `gateway_requests_total{route="/admin",status=~"4.."}`. Filters precisely to the admin path instead of inferring it from method+status, and catches `401` / `403` / `404` / `429` rejections too.
+
+### Operator-visible
+
+Same end-to-end shape as v0.0.16. Corrupted-rules smoke test still fires within ~90 s and delivers via webhook.
+
 ## [0.0.16] - 2024-05-07
 
 Alert on rejected hot-reload. markup-svc/ADR-0026 made hot-reload fail closed — bad rules get a 400 with the issue list, the previous (working) rules keep serving. This alert pages the operator within ~90 s of the rejection so the operator-vs-platform discrepancy is caught fast. Closes ADR-0014.
