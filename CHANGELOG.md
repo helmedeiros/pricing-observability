@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.18] - 2024-05-17
+
+Widen `AdminHotReloadRejected` to 5xx and add per-route latency panels.
+
+### Changed
+
+- `config/prometheus-rules.yml`: `AdminHotReloadRejected` matches `status=~"[45].."` instead of `4..`. Hot-reload returns 500 on CSV parse errors (markup-svc loader path), which the previous expression silently dropped.
+
+### Added
+
+- `config/dashboards/decision-gateway-overview.json`: two new panels — `p99 by route` and `p95 by route` — splitting the existing collapsed-latency panel by route now that the label is correct (decision-gateway v0.0.9 + ADR-0009). Excludes the empty-route `/metrics` self-scrape via `route!=""`.
+
 ## [0.0.17] - 2024-05-14
 
 Tighten `AdminHotReloadRejected` now that decision-gateway v0.0.9 fixed the empty-route-label bug.

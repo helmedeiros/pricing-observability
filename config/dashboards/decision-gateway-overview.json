@@ -74,6 +74,28 @@
         { "expr": "sum(rate(gateway_requests_total{status=~\"4..\"}[5m])) / sum(rate(gateway_requests_total[5m]))", "refId": "A" }
       ],
       "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 3 } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "p99 by route",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.99, sum by(le, route) (rate(gateway_request_duration_seconds_bucket{route!=\"\"}[5m])))", "legendFormat": "{{route}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "p95 by route",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by(le, route) (rate(gateway_request_duration_seconds_bucket{route!=\"\"}[5m])))", "legendFormat": "{{route}}", "refId": "A" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
     }
   ]
 }
