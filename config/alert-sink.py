@@ -24,6 +24,7 @@ class Handler(BaseHTTPRequestHandler):
                     "severity": alert.get("labels", {}).get("severity"),
                     "service": alert.get("labels", {}).get("service"),
                     "summary": alert.get("annotations", {}).get("summary"),
+                    "runbook_url": alert.get("annotations", {}).get("runbook_url"),
                     "starts_at": alert.get("startsAt"),
                     "ends_at": alert.get("endsAt"),
                 }

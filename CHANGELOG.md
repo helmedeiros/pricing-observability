@@ -7,6 +7,14 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.20] - 2024-05-22
+
+Carry `runbook_url` through the alert-sink webhook payload so Kibana can index it alongside the existing `summary` / `severity` / `service` fields. Operators can now build a saved search on `attrs.runbook_url:*` to list alerts that fired with their linked runbook.
+
+### Changed
+
+- `config/alert-sink.py`: webhook handler emits `runbook_url` in the per-alert JSON line.
+
 ## [0.0.19] - 2024-05-22
 
 Per-alert runbooks. Closes ADR-0015.
