@@ -7,6 +7,20 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.19] - 2024-05-22
+
+Per-alert runbooks. Closes ADR-0015.
+
+### Added
+
+- `docs/runbooks/`: one file per alert (6 in total), each with the fixed five-section shape (What this means / First check / If confirmed / If false-positive / Escalation).
+- `runbook_url` annotation on every alert in `config/prometheus-rules.yml` pointing at the corresponding runbook on GitHub. PagerDuty / Slack renders this as a clickable link; the alert-sink carries it as a JSON field.
+- `scripts/check-runbooks.sh`, wired into `make ci-local` via the new `check-runbooks` target. Asserts every alert has a `runbook_url`, every URL resolves to a file, every runbook matches an alert (no orphans), and every runbook has the five required sections.
+
+### Operator-visible
+
+When an alert fires, the AlertManager payload now includes `runbook_url`. The on-call follows a deterministic five-section script instead of deriving triage from prose annotations.
+
 ## [0.0.18] - 2024-05-17
 
 Widen `AdminHotReloadRejected` to 5xx and add per-route latency panels.

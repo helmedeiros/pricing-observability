@@ -33,3 +33,4 @@ NNNN-short-decision-name.md
 | [0012](0012-per-service-dashboards.md) | Per-service Grafana starter dashboards (decision-gateway + traffic-gen) | ✅ Accepted |
 | [0013](0013-tail-sampling-on-collector.md) | Tail sampling on the OTel Collector | ✅ Accepted |
 | [0014](0014-hot-reload-rejected-alert.md) | Alert on rejected hot-reload (AdminHotReloadRejected) | ✅ Accepted |
+| [0015](0015-alert-runbooks.md) | Per-alert runbooks via `runbook_url` annotation | ✅ Accepted |
