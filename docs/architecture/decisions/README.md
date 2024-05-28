@@ -34,3 +34,4 @@ NNNN-short-decision-name.md
 | [0013](0013-tail-sampling-on-collector.md) | Tail sampling on the OTel Collector | ✅ Accepted |
 | [0014](0014-hot-reload-rejected-alert.md) | Alert on rejected hot-reload (AdminHotReloadRejected) | ✅ Accepted |
 | [0015](0015-alert-runbooks.md) | Per-alert runbooks via `runbook_url` annotation | ✅ Accepted |
+| [0016](0016-runbook-saved-searches.md) | Runbook saved searches in Kibana | ✅ Accepted |

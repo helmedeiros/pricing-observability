@@ -8,7 +8,7 @@ A POST to a gateway `/admin/*` endpoint was rejected with a 4xx or 5xx in the la
 
 ## First check (5 min)
 
-1. **Find the rejected request** — Kibana: `service:"decision-gateway" AND msg:"gateway.access" AND attrs.path:"/admin/*" AND attrs.status:>=400`. Look at `attrs.correlation_id`, `attrs.status`, `attrs.path`.
+1. **Find the rejected request** — [open saved search `runbook: admin path rejected`](http://localhost:5601/app/discover#/view/runbook-admin-rejected). Look at `attrs.correlation_id`, `attrs.status`, `attrs.path`.
 2. **Read the rejection reason** — same correlation_id in the markup-svc logs: `service:"markup-svc" AND attrs.correlation_id:"<id>"`. The error string says exactly which rule failed Diagnose or which parser stage broke.
 3. **Confirm the live config** — `curl http://markup-svc:8080/admin/diagnose` returns the *currently-loaded* (good) rule set's diagnosis. Should be `healthy:true`. If healthy:false, somehow a broken set IS live; escalate.
 4. **Identify the operator** — chat / commit-log / change-ticket history. Whoever was deploying needs to know their config did NOT land.

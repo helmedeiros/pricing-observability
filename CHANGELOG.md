@@ -7,6 +7,23 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.21] - 2024-05-28
+
+Runbook saved searches. Three runbook first-check steps that named a Kibana query now link directly to a provisioned saved search instead. Closes ADR-0016.
+
+### Added
+
+- `config/kibana-saved-objects.ndjson`: three `type: "search"` saved objects (`runbook-markup-svc-5xx`, `runbook-gateway-5xx`, `runbook-admin-rejected`) with curated columns + `@timestamp desc` sort.
+- `scripts/check-saved-searches.sh`, wired into `make ci-local`. Asserts every `discover#/view/<id>` link in a runbook resolves to an NDJSON saved object, and every saved search in the NDJSON is referenced by at least one runbook.
+
+### Changed
+
+- `docs/runbooks/MarkupDecideErrorRateHigh.md`, `docs/runbooks/GatewayRequestErrorRateHigh.md`, `docs/runbooks/AdminHotReloadRejected.md`: first-check step swaps the prose Lucene query for a `[saved search name](http://localhost:5601/app/discover#/view/<id>)` link.
+
+### Operator-visible
+
+On-call clicks the link in the runbook (or in the AlertManager `runbook_url` markdown render) and Discover opens with the right query, columns, and sort. No copy-paste.
+
 ## [0.0.20] - 2024-05-22
 
 Carry `runbook_url` through the alert-sink webhook payload so Kibana can index it alongside the existing `summary` / `severity` / `service` fields. Operators can now build a saved search on `attrs.runbook_url:*` to list alerts that fired with their linked runbook.
