@@ -7,6 +7,22 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.22] - 2024-06-03
+
+Runbook Jaeger deep-links. Four runbook steps that named a Jaeger SPM / search filter as prose now link directly to a service-scoped Jaeger URL. Closes ADR-0017.
+
+### Changed
+
+- `docs/runbooks/MarkupDecideErrorRateHigh.md`, `docs/runbooks/MarkupDecideP99Slow.md`, `docs/runbooks/GatewayRequestErrorRateHigh.md`, `docs/runbooks/GatewayRequestP99Slow.md`: Jaeger step swaps prose query for two links — SPM (`/monitor?service=<svc>`) and filtered span search (`/search?service=<svc>&...` with `tags={"otel.status_code":"ERROR"}` or `minDuration=5ms` depending on the runbook).
+
+### Added
+
+- `scripts/check-jaeger-links.sh`, wired into `make ci-local`. Asserts every Jaeger URL in a runbook uses a known path (`/monitor` or `/search`), carries `service=`, and references one of the known platform services.
+
+### Operator-visible
+
+On-call clicks the Jaeger link in the runbook and lands on SPM or trace search already scoped to the alerting service. Combined with the v0.0.21 Kibana saved searches, the runbook first-check / triage steps are now end-to-end one-click across all three signal sources (Grafana, Kibana, Jaeger).
+
 ## [0.0.21] - 2024-05-28
 
 Runbook saved searches. Three runbook first-check steps that named a Kibana query now link directly to a provisioned saved search instead. Closes ADR-0016.

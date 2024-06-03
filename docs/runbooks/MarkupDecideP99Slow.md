@@ -11,7 +11,7 @@
 1. **Confirm in the dashboard** — open `markup-svc — overview` in Grafana, check the `Decide latency — p50 / p95 / p99` panel. Confirm the p99 line is actually above 5 ms (the alert fires on the smoothed series; the live panel shows the spikes).
 2. **Rule set size** — `curl http://markup-svc:8080/admin/diagnose | jq '.rule_count'` (or the gateway-proxied version). If rule_count grew significantly since the last steady state, indexing pressure is the prime suspect.
 3. **Adapter check** — `docker compose ps markup-svc` + inspect the `--adapter=` flag. `inmemory` is O(N) per Decide; if N > 100, p99 climbing is expected.
-4. **Jaeger span breakdown** — open SPM for `markup-svc`, look at recent traces, identify which child span is slowest (`markup.decide.evaluate`, `guardrails.check`, etc.).
+4. **Jaeger span breakdown** — [open SPM for markup-svc](http://localhost:16686/monitor?service=markup-svc) and [list the slowest recent traces](http://localhost:16686/search?service=markup-svc&lookback=15m&limit=20&minDuration=5ms). Identify which child span is slowest (`markup.decide.evaluate`, `guardrails.check`, etc.).
 
 ## If confirmed
 

@@ -12,7 +12,7 @@
    - `Latency — p50 / p95 / p99` (overall) — is the spike on p99 only or also on p95?
    - `p99 by route` — is one route dominating? (`/decide` vs `/admin`)
 2. **Cross-correlate with markup-svc** — open `MarkupDecideP99Slow` state. If both fire, the engine is the proximate cause; follow its runbook.
-3. **Jaeger Monitor (SPM)** — gateway service, look at the slow traces (top of the latency chart). Inspect `gateway.proxy.upstream` span vs the parent `gateway.request` span — the delta is gateway-internal time.
+3. **Jaeger Monitor (SPM)** — [open SPM for decision-gateway](http://localhost:16686/monitor?service=decision-gateway) and [list the slowest recent traces](http://localhost:16686/search?service=decision-gateway&lookback=15m&limit=20&minDuration=5ms). Inspect `gateway.proxy.upstream` span vs the parent `gateway.request` span — the delta is gateway-internal time.
 4. **h2c flag check** — `docker compose ps decision-gateway --format '{{.Command}}'` should NOT include `--upstream-h2c` (per ADR-0006 it's measured worse than HTTP/1.1 pool-tuned on a Docker bridge). If somebody re-enabled it, that's the regression.
 
 ## If confirmed

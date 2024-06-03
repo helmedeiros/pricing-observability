@@ -10,7 +10,7 @@ The decision-gateway server-span error rate exceeded 0.1/s over the last 5 min, 
 
 1. **Cross-correlate with markup-svc** — open the `MarkupDecideErrorRateHigh` panel. If both are firing together, the root cause is in markup-svc; follow its runbook first.
 2. **Gateway access logs** — [open saved search `runbook: decision-gateway 5xx access`](http://localhost:5601/app/discover#/view/runbook-gateway-5xx). Look at the `attrs.route` distribution. Is it concentrated on one route or spread?
-3. **Jaeger** — open SPM for `decision-gateway`, filter `span_kind=SERVER` + `status_code=STATUS_CODE_ERROR`. Click into a failing trace; inspect the `gateway.proxy.upstream` child span for the actual error.
+3. **Jaeger** — [open SPM for decision-gateway](http://localhost:16686/monitor?service=decision-gateway) and [search recent error traces](http://localhost:16686/search?service=decision-gateway&tags=%7B%22otel.status_code%22%3A%22ERROR%22%7D&lookback=15m&limit=20). Click into a failing trace; inspect the `gateway.proxy.upstream` child span for the actual error.
 4. **Routes table** — `curl http://decision-gateway:8090/admin/routes`. Confirm the routes resolve to live backends.
 
 ## If confirmed

@@ -10,7 +10,7 @@ The markup-svc Decide path is returning `outcome=error` faster than 0.1/s averag
 
 1. **Gateway 5xx panel** — open `decision-gateway — overview` in Grafana, check the `5xx rate (5m)` stat. Confirms whether the engine error is reaching the customer or being absorbed.
 2. **Recent error logs in Kibana** — [open saved search `runbook: markup-svc 5xx access`](http://localhost:5601/app/discover#/view/runbook-markup-svc-5xx). Look at `attrs.error` + `attrs.engine_adapter` on the most recent entries.
-3. **Jaeger** — open Service Performance Monitoring for `markup-svc`, filter `span_kind=SERVER` + `status_code=STATUS_CODE_ERROR`. Click into one to see which span ended in error and what the parent gateway.request span looked like.
+3. **Jaeger** — [open SPM for markup-svc](http://localhost:16686/monitor?service=markup-svc) and [search recent error spans](http://localhost:16686/search?service=markup-svc&tags=%7B%22otel.status_code%22%3A%22ERROR%22%7D&lookback=15m&limit=20). Click into one to see which span ended in error and what the parent gateway.request span looked like.
 4. **Rule set health** — `curl http://markup-svc:8080/admin/diagnose` (or run it via the gateway: `curl http://decision-gateway:8090/admin/diagnose`). If healthy=false, the loaded rules have known issues that may be producing engine errors.
 
 ## If confirmed

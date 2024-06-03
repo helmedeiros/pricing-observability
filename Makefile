@@ -1,12 +1,13 @@
 SHELL := /bin/bash
 
-.PHONY: help check-adrs check-runbooks check-saved-searches validate-compose all ci-local clean
+.PHONY: help check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose all ci-local clean
 
 help:
 	@echo "Targets:"
 	@echo "  check-adrs       - verify the ADR README index matches the folder"
 	@echo "  check-runbooks   - verify every alert has a runbook_url + 5-section runbook"
 	@echo "  check-saved-searches - verify runbook discover links resolve to NDJSON entries"
+	@echo "  check-jaeger-links   - verify runbook Jaeger deep-links are service-scoped"
 	@echo "  validate-compose - lint every docker-compose.*.yaml file via 'docker compose config'"
 	@echo "  ci-local         - the same checks CI runs, in the same order"
 	@echo "  clean            - remove generated artifacts"
@@ -19,6 +20,9 @@ check-runbooks:
 
 check-saved-searches:
 	@bash scripts/check-saved-searches.sh
+
+check-jaeger-links:
+	@bash scripts/check-jaeger-links.sh
 
 # Walk each docker-compose.*.yaml file in the repo root and let
 # docker compose resolve the merged config. A YAML / schema /
@@ -37,7 +41,7 @@ validate-compose:
 	  fi; \
 	done
 
-all: check-adrs check-runbooks check-saved-searches validate-compose
+all: check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose
 
 ci-local: all
 
