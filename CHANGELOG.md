@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.23] - 2024-06-12
+
+Re-narrow `AdminHotReloadRejected` to 4xx now that markup-svc v0.1.17 returns 400 (not 500) on parse-error reload.
+
+### Changed
+
+- `config/prometheus-rules.yml`: `AdminHotReloadRejected` expression switches from `status=~"[45].."` back to `status=~"4.."`. 5xx on `/admin/*` now strictly indicates a server-side fault and is out of scope for this alert (could ship as a separate `AdminReloadServerError` if a real workflow proves it).
+
+### Pairs with
+
+markup-svc v0.1.17 (ADR-0027 — `InvalidRuleSetError` ↦ 400). The widen-then-narrow cycle was intentional: v0.0.18 widened to cover the gap, v0.1.17 fixed the contract upstream, v0.0.23 returns the alert to the precise filter.
+
 ## [0.0.22] - 2024-06-03
 
 Runbook Jaeger deep-links. Four runbook steps that named a Jaeger SPM / search filter as prose now link directly to a service-scoped Jaeger URL. Closes ADR-0017.

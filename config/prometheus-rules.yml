@@ -73,7 +73,7 @@ groups:
       # currently-serving config is keeping customers up but the operator
       # almost certainly thinks the new config is live.
       - alert: AdminHotReloadRejected
-        expr: sum(increase(gateway_requests_total{route="/admin",status=~"[45].."}[5m])) > 0
+        expr: sum(increase(gateway_requests_total{route="/admin",status=~"4.."}[5m])) > 0
         for: 1m
         labels:
           severity: warning
