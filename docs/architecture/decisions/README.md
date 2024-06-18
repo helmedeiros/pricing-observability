@@ -36,3 +36,4 @@ NNNN-short-decision-name.md
 | [0015](0015-alert-runbooks.md) | Per-alert runbooks via `runbook_url` annotation | ✅ Accepted |
 | [0016](0016-runbook-saved-searches.md) | Runbook saved searches in Kibana | ✅ Accepted |
 | [0017](0017-runbook-jaeger-deep-links.md) | Runbook Jaeger deep-links | ✅ Accepted |
+| [0018](0018-admin-paths-always-sampled.md) | Sample 100% of /admin* traces | ✅ Accepted |

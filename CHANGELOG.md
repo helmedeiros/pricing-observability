@@ -7,6 +7,22 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [0.0.24] - 2024-06-18
+
+Sample 100% of `/admin*` traces. Closes ADR-0018.
+
+### Added
+
+- `config/otel-collector-config.yaml` `tail_sampling.policies`: new `admin-paths` policy (`type: string_attribute`, `key: http.url`, `values: [".*/admin.*"]`, `enabled_regex_matching: true`) before the existing `probabilistic-10pct` fallback.
+
+### Operator-visible
+
+Trace-context audit found that admin POSTs from traffic-gen propagate correctly through the InstrumentedTransport but were falling into the 10% probabilistic policy (admin POSTs are fast + non-error), so they were drowned out in Jaeger's recency-ordered queries. Post-policy a 5-min window returns 31 admin traces via tag search (was 0). Runbook Jaeger deep-links now reliably surface admin failures.
+
+### Known gap
+
+The audit also surfaced that markup-svc admin handlers (`/admin/reload`, `/admin/diagnose`, `/admin/guardrails`) don't open OTel spans — admin trace waterfalls end at the gateway's `gateway.proxy.upstream` child. Closing this requires markup-svc work and is tracked there.
+
 ## [0.0.23] - 2024-06-12
 
 Re-narrow `AdminHotReloadRejected` to 4xx now that markup-svc v0.1.17 returns 400 (not 500) on parse-error reload.

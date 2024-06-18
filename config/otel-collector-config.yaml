@@ -27,6 +27,12 @@ processors:
       - name: slow-traces
         type: latency
         latency: { threshold_ms: 10 }
+      - name: admin-paths
+        type: string_attribute
+        string_attribute:
+          key: http.url
+          values: [".*/admin.*"]
+          enabled_regex_matching: true
       - name: probabilistic-10pct
         type: probabilistic
         probabilistic: { sampling_percentage: 10 }
