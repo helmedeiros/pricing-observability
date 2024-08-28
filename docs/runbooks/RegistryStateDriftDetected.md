@@ -12,8 +12,8 @@ This is a critical / should-never-happen invariant under normal operation. fssta
 
 ## First check (5 min)
 
-1. **Find the drifted rollback** — Kibana: `msg:"registry.rollback.race_detected"` over the last 15 min. The event carries `preview_hash`, `committed_hash`, `operator`, and `trace_id`. **Open the trace_id in Jaeger immediately**.
-2. **Identify the racing promote** — Kibana for the same time window: `msg:"registry.access" AND attrs.path:"/promote"`. Find the `/promote` whose trace started before the rollback's trace ended.
+1. **Find the drifted rollback** — [open saved search `runbook: registry state drift`](http://localhost:5601/app/discover#/view/runbook-registry-state-drift). The event carries `preview_hash`, `committed_hash`, `operator`, and `trace_id`. **Click the `attrs.trace_id` to jump to Jaeger immediately** (ADR-0010).
+2. **Identify the racing promote** — [open saved search `runbook: registry promote failures`](http://localhost:5601/app/discover#/view/runbook-registry-promote-failures) (also catches successful promotes minus the `status >= 400` filter — broaden the time range to cover ~2 min before the rollback's `@timestamp`). Find the `/promote` whose trace started before the rollback's trace ended.
 3. **What is currently serving** — `curl http://decision-gateway:8090/admin/diagnose` to see the active rule set in markup-svc. Cross-reference against `committed_hash` from step 1.
 
 ## If confirmed

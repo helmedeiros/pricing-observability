@@ -33,6 +33,23 @@ processors:
           key: http.url
           values: [".*/admin.*"]
           enabled_regex_matching: true
+      # model-registry write surface (ADR-0019). The operator-facing
+      # /upload + /promote + /rollback endpoints are admin-class
+      # (a few invocations per day). Dropping them to the 10%
+      # probabilistic sampler means a mid-firing investigation may
+      # find that the trace for the offending operator action was
+      # silently discarded. Keep 100% — the volume is negligible
+      # vs the value of always having the trace available.
+      #
+      # The registry's WithServerSpan middleware sets http.route to
+      # the matched-pattern (not http.url), so the policy keys on
+      # http.route.
+      - name: registry-writes
+        type: string_attribute
+        string_attribute:
+          key: http.route
+          values: ["/upload", "/promote", "/rollback"]
+          enabled_regex_matching: false
       - name: probabilistic-10pct
         type: probabilistic
         probabilistic: { sampling_percentage: 10 }
