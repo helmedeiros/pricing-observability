@@ -37,3 +37,4 @@ NNNN-short-decision-name.md
 | [0016](0016-runbook-saved-searches.md) | Runbook saved searches in Kibana | ✅ Accepted |
 | [0017](0017-runbook-jaeger-deep-links.md) | Runbook Jaeger deep-links | ✅ Accepted |
 | [0018](0018-admin-paths-always-sampled.md) | Sample 100% of /admin* traces | ✅ Accepted |
+| [0019](0019-model-registry-alerts.md) | Model Registry alerting rules + exemplar storage | ✅ Accepted |

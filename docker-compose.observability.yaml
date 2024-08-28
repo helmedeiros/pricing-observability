@@ -154,7 +154,7 @@ services:
       - "--web.enable-lifecycle"
       # Persist exemplars so Grafana panels can drill from a histogram
       # bucket to the Jaeger trace via the trace_id label model-registry
-      # emits on registry_deploy_duration_seconds (ADR-0011). Default
+      # emits on registry_deploy_duration_seconds (ADR-0019). Default
       # capacity is 100,000 exemplars — sufficient at the registry's
       # operator-class throughput (admin-class endpoints, not per-request).
       - "--enable-feature=exemplar-storage"

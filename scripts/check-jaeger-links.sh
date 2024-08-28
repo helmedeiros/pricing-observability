@@ -7,7 +7,7 @@
 set -euo pipefail
 
 RB_DIR="docs/runbooks"
-KNOWN_SERVICES="markup-svc decision-gateway traffic-gen"
+KNOWN_SERVICES="markup-svc decision-gateway traffic-gen model-registry"
 KNOWN_PATHS="/monitor /search"
 
 fail=0

@@ -1,4 +1,4 @@
-# 11. Model Registry alerting rules + exemplar storage
+# 19. Model Registry alerting rules + exemplar storage
 
 ## Status
 
