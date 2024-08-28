@@ -87,3 +87,59 @@ groups:
             Cross-check in Kibana: msg:"gateway.access" AND attrs.path:"/admin/*" AND attrs.status:>=400
             Re-run GET /admin/diagnose on markup-svc for the issue list.
           runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/AdminHotReloadRejected.md"
+
+  # model-registry control-plane alerts (ADR-0011). The counters
+  # registry_uploads_total / registry_promotions_total /
+  # registry_rollbacks_total / registry_deploys_total /
+  # registry_state_drift_total + the registry_deploy_duration_seconds
+  # histogram are emitted by model-registry v0.0.4+. State drift is
+  # critical because it represents a should-never-happen invariant
+  # (concurrent /promote landed between a /rollback's preview-hash
+  # read and its committed-hash write); the other three catch
+  # sustained regressions, not single bad requests.
+  - name: model-registry
+    interval: 30s
+    rules:
+      - alert: RegistryUploadFailureRate
+        expr: sum(rate(registry_uploads_total{outcome!="ok"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: model-registry
+        annotations:
+          summary: "model-registry /upload failure rate > 0.05/s for 5m"
+          description: "registry_uploads_total{outcome!=ok} rate is {{ $value | printf \"%.3f\" }} req/s. Outcomes covered: invalid (malformed multipart), too_large (over the 16 MB ceiling), substrate_error (fsstore write failed)."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryUploadFailureRate.md"
+
+      - alert: RegistryPromotionFailureRate
+        expr: sum(rate(registry_promotions_total{outcome=~"failed|partial"}[5m])) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          service: model-registry
+        annotations:
+          summary: "model-registry /promote failed-or-partial rate > 0.02/s for 5m"
+          description: "registry_promotions_total{outcome=~failed|partial} rate is {{ $value | printf \"%.3f\" }} req/s. failed = all instances rejected the rolling push; partial = some did but state committed per ADR-0005. Sustained partial is the same operator action as failed: a sick instance needs to be checked."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryPromotionFailureRate.md"
+
+      - alert: RegistryDeployFailureRate
+        expr: sum(rate(registry_deploys_total{outcome="failed"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          service: model-registry
+        annotations:
+          summary: "model-registry per-instance deploy failure rate > 0.05/s for 5m"
+          description: "registry_deploys_total{outcome=failed} rate is {{ $value | printf \"%.3f\" }} per-instance failures / s. registry.deploy.push_to_instance span ended in error; check the instance.url attribute on the span and the markup-svc /healthz on that URL."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryDeployFailureRate.md"
+
+      - alert: RegistryStateDriftDetected
+        expr: sum(increase(registry_state_drift_total[5m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: model-registry
+        annotations:
+          summary: "model-registry detected envstate drift on /rollback (should never happen)"
+          description: "{{ $value | printf \"%.0f\" }} race-detected divergence(s) in the last 5m. A /rollback's preview-hash and committed-hash diverged because a concurrent /promote landed between the two reads. Reconcile via a follow-up /rollback before any further /promote — the data plane is currently serving `committed_hash` but the operator who issued the rollback thinks it is serving `preview_hash`."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryStateDriftDetected.md"

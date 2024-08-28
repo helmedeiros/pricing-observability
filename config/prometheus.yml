@@ -51,6 +51,23 @@ scrape_configs:
         labels:
           service: traffic-gen
 
+  # model-registry control-plane v0.0.4+ (ADR-0011). Exposes
+  # registry_http_* + the lifecycle counters
+  # (uploads / promotions / rollbacks / deploys / state_drift)
+  # plus registry_deploy_duration_seconds with trace_id
+  # exemplars (OpenMetrics). --enable-feature=exemplar-storage
+  # on the prometheus container is what lets those exemplars
+  # survive into Grafana drill-downs. The registry's default
+  # listen is :8090 inside its own compose network; we publish
+  # it on host 8091 to avoid the collision with decision-gateway.
+  - job_name: model-registry
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:8091"]
+        labels:
+          service: model-registry
+
   # OTel Collector spanmetrics. The Collector aggregates spans into
   # traces_spanmetrics_calls_total + traces_spanmetrics_duration_milliseconds
   # histograms and exposes them on :8889/metrics. Jaeger's Monitor
