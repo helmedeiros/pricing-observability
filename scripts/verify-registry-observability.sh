@@ -51,7 +51,7 @@ COLLECTOR_URL="${COLLECTOR_URL:-localhost:4317}"
 JAEGER_URL="${JAEGER_URL:-http://localhost:16686}"
 PROM_URL="${PROM_URL:-http://localhost:9090}"
 ES_URL="${ES_URL:-http://localhost:9200}"
-ES_INDEX="${ES_INDEX:-filebeat-*}"
+ES_INDEX="${ES_INDEX:-platform-logs-*}"
 KEEP_RUNNING=false
 
 for arg in "$@"; do
@@ -77,9 +77,15 @@ require jq
 
 echo "==> preconditions"
 
-if [ -z "$REGISTRY_BIN" ] || [ ! -x "$REGISTRY_BIN" ]; then
-  echo "set REGISTRY_BIN to an executable model-registry binary (got: '$REGISTRY_BIN')" >&2
-  exit 2
+# REGISTRY_BIN is only required when this script is responsible for
+# booting the registry. When VERIFY_ES_IN_COMPOSE=1, the operator has
+# already started the registry via docker compose and we drive an
+# already-running endpoint.
+if [ "${VERIFY_ES_IN_COMPOSE:-0}" != "1" ]; then
+  if [ -z "$REGISTRY_BIN" ] || [ ! -x "$REGISTRY_BIN" ]; then
+    echo "set REGISTRY_BIN to an executable model-registry binary (got: '$REGISTRY_BIN')" >&2
+    exit 2
+  fi
 fi
 
 for svc in "$JAEGER_URL" "$PROM_URL" "$ES_URL" "$MARKUP_SVC_URL"; do
@@ -99,37 +105,57 @@ done
 
 echo "==> boot model-registry on :${REGISTRY_PORT}"
 
-DATA_DIR="$(mktemp -d -t mr-obs-e2e.XXXXXX)"
-trap 'cleanup' EXIT INT TERM
-cleanup() {
-  if [ "$KEEP_RUNNING" = false ] && [ -n "${REG_PID:-}" ] && kill -0 "$REG_PID" 2>/dev/null; then
-    kill "$REG_PID" 2>/dev/null || true
-    wait "$REG_PID" 2>/dev/null || true
+if [ "${VERIFY_ES_IN_COMPOSE:-0}" = "1" ]; then
+  # Compose-managed registry already running; just confirm reachable.
+  if curl -fsS -o /dev/null -m 2 "$REGISTRY_URL/healthz"; then
+    ok "registry /healthz reachable at $REGISTRY_URL (compose-managed)"
+  else
+    bad "VERIFY_ES_IN_COMPOSE=1 but $REGISTRY_URL/healthz is not reachable — bring it up first"
+    exit 2
   fi
-  rm -rf "$DATA_DIR" 2>/dev/null || true
-}
+  trap 'rm -rf "${DATA_DIR:-/dev/null}" 2>/dev/null || true' EXIT INT TERM
+else
+  DATA_DIR="$(mktemp -d -t mr-obs-e2e.XXXXXX)"
+  INSTANCES_CFG="${DATA_DIR}/instances.json"
+  # Point the production env at the running markup-svc so POST /promote
+  # can rolling-push to it. Without --instances-config the registry
+  # disables the /promote + /rollback routes at boot and returns 404.
+  cat >"$INSTANCES_CFG" <<EOF
+{"production": ["${MARKUP_SVC_URL}"]}
+EOF
 
-REG_LOG="$(mktemp -t mr-obs-e2e.log.XXXXXX)"
-REGISTRY_OTEL_EXPORTER=otlp \
-REGISTRY_OTEL_ENDPOINT="$COLLECTOR_URL" \
-REGISTRY_ADDR=":${REGISTRY_PORT}" \
-REGISTRY_STORE_BACKEND=fs \
-REGISTRY_STORE_ROOT="$DATA_DIR" \
-OTEL_SERVICE_NAME=model-registry \
-  "$REGISTRY_BIN" >"$REG_LOG" 2>&1 &
-REG_PID=$!
+  trap 'cleanup' EXIT INT TERM
+  cleanup() {
+    if [ "$KEEP_RUNNING" = false ] && [ -n "${REG_PID:-}" ] && kill -0 "$REG_PID" 2>/dev/null; then
+      kill "$REG_PID" 2>/dev/null || true
+      wait "$REG_PID" 2>/dev/null || true
+    fi
+    rm -rf "$DATA_DIR" 2>/dev/null || true
+  }
 
-note "registry pid=$REG_PID; logs at $REG_LOG"
+  REG_LOG="$(mktemp -t mr-obs-e2e.log.XXXXXX)"
+  REGISTRY_OTEL_EXPORTER=otlp \
+  REGISTRY_OTEL_ENDPOINT="$COLLECTOR_URL" \
+  REGISTRY_ADDR=":${REGISTRY_PORT}" \
+  REGISTRY_STORE_BACKEND=fs \
+  REGISTRY_STORE_ROOT="$DATA_DIR" \
+  REGISTRY_INSTANCES_CONFIG="$INSTANCES_CFG" \
+  OTEL_SERVICE_NAME=model-registry \
+    "$REGISTRY_BIN" >"$REG_LOG" 2>&1 &
+  REG_PID=$!
 
-# Wait for /healthz to come up.
-for i in $(seq 1 50); do
-  if curl -fsS -o /dev/null -m 1 "$REGISTRY_URL/healthz"; then
-    ok "registry /healthz ready"
-    break
-  fi
-  sleep 0.1
-  [ "$i" -lt 50 ] || { bad "registry never came up"; exit 1; }
-done
+  note "registry pid=$REG_PID; logs at $REG_LOG"
+
+  # Wait for /healthz to come up.
+  for i in $(seq 1 50); do
+    if curl -fsS -o /dev/null -m 1 "$REGISTRY_URL/healthz"; then
+      ok "registry /healthz ready"
+      break
+    fi
+    sleep 0.1
+    [ "$i" -lt 50 ] || { bad "registry never came up"; exit 1; }
+  done
+fi
 
 # --- 2. Drive the round-trip ---------------------------------------------
 
@@ -197,7 +223,19 @@ if [ "$TRACE_COUNT" -gt 0 ]; then
     fi
   done
   # Cross-service: assert markup-svc spans appear in the same traces.
-  cross="$(echo "$TRACES_JSON" | jq '[.data[] | select(.spans | any(.process.serviceName == "markup-svc"))] | length')"
+  # Jaeger's trace JSON shape: spans[].processID references the trace's
+  # processes{processID: {serviceName, ...}} map. We resolve span →
+  # processID → serviceName to walk the cross-service graph.
+  cross="$(echo "$TRACES_JSON" | jq '
+    [ .data[]
+      | . as $t
+      | select(
+          .spans
+          | any(
+              $t.processes[.processID].serviceName == "markup-svc"
+            )
+        )
+    ] | length')"
   if [ "$cross" -gt 0 ]; then
     ok "Jaeger trace nests markup-svc as a downstream service ($cross trace(s))"
   else
@@ -240,28 +278,47 @@ fi
 
 echo "==> elasticsearch _search"
 
-# Filebeat → ES indexing delay can be a couple of seconds beyond the
-# 18s sleep above; one final wait.
-sleep 5
-ES_QUERY='{
-  "size": 1,
-  "query": {
-    "bool": {
-      "filter": [
-        { "term": { "msg.keyword": "registry.access" } },
-        { "exists": { "field": "attrs.trace_id" } }
-      ]
-    }
-  },
-  "sort": [{"@timestamp": "desc"}]
-}'
-ES_HIT="$(curl -fsS -H 'Content-Type: application/json' -X POST "$ES_URL/$ES_INDEX/_search" -d "$ES_QUERY")"
-ES_TOTAL="$(echo "$ES_HIT" | jq -r '.hits.total.value // 0')"
-if [ "$ES_TOTAL" -gt 0 ]; then
-  ES_TRACE="$(echo "$ES_HIT" | jq -r '.hits.hits[0]._source.attrs.trace_id')"
-  ok "Elasticsearch indexed registry.access with attrs.trace_id=$ES_TRACE"
+# Filebeat tails /var/lib/docker/containers/*.log inside its container,
+# so it can only index containers. This verification script runs the
+# registry as a host process for self-containment, which means
+# Filebeat will never see its stdout. Detect that case and emit a
+# clear SKIP rather than a confusing FAIL.
+#
+# To actually verify ES indexing, bring the registry up via docker
+# compose (decision-gateway/docker-compose.yaml now includes a
+# model-registry service) and re-run with VERIFY_ES_IN_COMPOSE=1.
+if [ "${VERIFY_ES_IN_COMPOSE:-0}" != "1" ]; then
+  note "SKIP — registry runs as a host process; Filebeat only tails container logs."
+  note "      Bring the registry up via 'docker compose up -d model-registry' in"
+  note "      decision-gateway/, then run this script with VERIFY_ES_IN_COMPOSE=1."
 else
-  bad "no registry.access events with attrs.trace_id in ES index $ES_INDEX (Filebeat pipeline broken or trace not minted in time)"
+  # Filebeat → ES indexing delay can be a couple of seconds beyond the
+  # 18s sleep above; one final wait.
+  sleep 5
+  # decode_json_fields lifts the application JSON line into top-level
+  # ES fields, so msg + attrs.* are at the document root. match_phrase
+  # on `message` is the most portable filter because some Filebeat
+  # versions don't index `msg` as a keyword.
+  ES_QUERY='{
+    "size": 1,
+    "query": {
+      "bool": {
+        "filter": [
+          { "match_phrase": { "message": "registry.access" } },
+          { "exists": { "field": "attrs.trace_id" } }
+        ]
+      }
+    },
+    "sort": [{"@timestamp": "desc"}]
+  }'
+  ES_HIT="$(curl -fsS -H 'Content-Type: application/json' -X POST "$ES_URL/$ES_INDEX/_search" -d "$ES_QUERY")"
+  ES_TOTAL="$(echo "$ES_HIT" | jq -r '.hits.total.value // 0')"
+  if [ "$ES_TOTAL" -gt 0 ]; then
+    ES_TRACE="$(echo "$ES_HIT" | jq -r '.hits.hits[0]._source.attrs.trace_id')"
+    ok "Elasticsearch indexed registry.access with attrs.trace_id=$ES_TRACE"
+  else
+    bad "no registry.access events with attrs.trace_id in ES index $ES_INDEX (Filebeat pipeline broken or trace not minted in time)"
+  fi
 fi
 
 # --- summary -------------------------------------------------------------
