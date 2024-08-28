@@ -52,6 +52,8 @@ JAEGER_URL="${JAEGER_URL:-http://localhost:16686}"
 PROM_URL="${PROM_URL:-http://localhost:9090}"
 ES_URL="${ES_URL:-http://localhost:9200}"
 ES_INDEX="${ES_INDEX:-platform-logs-*}"
+AM_URL="${AM_URL:-http://localhost:9093}"
+SINK_CONTAINER="${SINK_CONTAINER:-pricing-observability-alert-sink-1}"
 KEEP_RUNNING=false
 
 for arg in "$@"; do
@@ -318,6 +320,90 @@ else
     ok "Elasticsearch indexed registry.access with attrs.trace_id=$ES_TRACE"
   else
     bad "no registry.access events with attrs.trace_id in ES index $ES_INDEX (Filebeat pipeline broken or trace not minted in time)"
+  fi
+fi
+
+# --- 6. AlertManager: synthetic alert routes to the sink ----------------
+#
+# The four registry rules are loaded + Prometheus evaluates them every
+# 30s (verified above via /api/v1/rules). What we have not proven:
+# when one of them flips to firing, the resulting alert actually
+# reaches the configured webhook receiver (alert-sink). Waiting for
+# the `for: 5m` window to expire on a real-load failure burst is too
+# slow for a CI / smoke harness; instead we POST a synthetic alert
+# directly to AlertManager's /api/v2/alerts endpoint with the same
+# label shape the registry rules emit, then verify the sink received
+# it.
+#
+# This validates: AlertManager config loaded, route block accepts the
+# {service=model-registry, severity=warning|critical} shape, the
+# webhook URL is reachable, the sink parses our shape correctly.
+echo "==> alertmanager → sink integration"
+
+if ! curl -fsS -o /dev/null -m 2 "$AM_URL/-/healthy" 2>/dev/null; then
+  bad "AlertManager not reachable at $AM_URL — skipping integration check"
+else
+  # Mint a uniquely-named alert so AlertManager's group_interval (5m)
+  # + group_by [alertname, service] don't suppress this probe as a
+  # repeat of an earlier run. Without the unique alertname, a second
+  # invocation within 5 min would land in the same group as the first
+  # and AM would silently sit on it — the test would falsely report
+  # "alert-sink never received" when the integration is fine.
+  PROBE_ID="verify-obs-$(date +%s%N)"
+  PROBE_ALERT="$(jq -n --arg id "$PROBE_ID" '[
+    {
+      "labels": {
+        "alertname": ("RegistryVerifyProbe-" + $id),
+        "severity": "critical",
+        "service": "model-registry"
+      },
+      "annotations": {
+        "summary": ("synthetic probe " + $id),
+        "runbook_url": "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryStateDriftDetected.md"
+      },
+      "startsAt": (now | strftime("%Y-%m-%dT%H:%M:%S.000Z"))
+    }
+  ]')"
+
+  if ! curl -fsS -X POST "$AM_URL/api/v2/alerts" \
+       -H 'Content-Type: application/json' -d "$PROBE_ALERT" >/dev/null; then
+    bad "AlertManager rejected synthetic alert POST — config or auth broken"
+  else
+    ok "AlertManager accepted synthetic alert (probe_id=$PROBE_ID)"
+
+    # Poll AM's own /api/v2/alerts until it returns the probe as
+    # active (proves the alert moved through AM's state machine).
+    PROBE_ALERTNAME="RegistryVerifyProbe-${PROBE_ID}"
+    for i in $(seq 1 20); do
+      if curl -fsS "$AM_URL/api/v2/alerts?active=true" 2>/dev/null \
+         | jq -e --arg n "$PROBE_ALERTNAME" '
+             any(.[]; .labels.alertname == $n)
+           ' >/dev/null; then
+        ok "AlertManager lists synthetic alert as active (state machine OK)"
+        break
+      fi
+      sleep 0.5
+      [ "$i" -lt 20 ] || bad "AlertManager never surfaced the synthetic alert as active"
+    done
+
+    # Default group_wait is 10s + group_interval 5m; the first
+    # delivery to the webhook happens after group_wait. Allow a
+    # generous window for first delivery.
+    note "waiting up to 30s for AlertManager → sink delivery (group_wait + jitter)"
+    delivered=false
+    for i in $(seq 1 30); do
+      if docker logs "$SINK_CONTAINER" 2>&1 | grep -q "$PROBE_ID"; then
+        delivered=true
+        break
+      fi
+      sleep 1
+    done
+    if [ "$delivered" = "true" ]; then
+      sink_line="$(docker logs "$SINK_CONTAINER" 2>&1 | grep "$PROBE_ID" | tail -1)"
+      ok "alert-sink received the alert: $(echo "$sink_line" | jq -r '.alertname // "n/a"') / $(echo "$sink_line" | jq -r '.severity // "n/a"')"
+    else
+      bad "alert-sink never received the synthetic alert (route + webhook integration broken)"
+    fi
   fi
 fi
 
