@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose all ci-local clean
+.PHONY: help check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose verify-registry-obs all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -9,6 +9,9 @@ help:
 	@echo "  check-saved-searches - verify runbook discover links resolve to NDJSON entries"
 	@echo "  check-jaeger-links   - verify runbook Jaeger deep-links are service-scoped"
 	@echo "  validate-compose - lint every docker-compose.*.yaml file via 'docker compose config'"
+	@echo "  verify-registry-obs - LIVE-STACK: boot a registry, drive a round-trip,"
+	@echo "                        poll Jaeger + Prom + ES to prove obs data flows"
+	@echo "                        (requires the stack up + REGISTRY_BIN set; see scripts/)"
 	@echo "  ci-local         - the same checks CI runs, in the same order"
 	@echo "  clean            - remove generated artifacts"
 
@@ -44,6 +47,16 @@ validate-compose:
 all: check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose
 
 ci-local: all
+
+# Live-stack verification target. NOT part of ci-local because it
+# requires the full observability stack + a markup-svc + a built
+# model-registry binary. Operator-run; see ADR-0019 + the script
+# header for prerequisites. Pass the registry binary path as
+# REGISTRY_BIN or as $$ARGS:
+#   make verify-registry-obs REGISTRY_BIN=/abs/path/to/model-registry
+#   make verify-registry-obs ARGS=/abs/path/to/model-registry
+verify-registry-obs:
+	@bash scripts/verify-registry-observability.sh $(ARGS)
 
 clean:
 	@echo "nothing to clean"
