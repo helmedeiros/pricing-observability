@@ -143,3 +143,20 @@ groups:
           summary: "model-registry detected envstate drift on /rollback (should never happen)"
           description: "{{ $value | printf \"%.0f\" }} race-detected divergence(s) in the last 5m. A /rollback's preview-hash and committed-hash diverged because a concurrent /promote landed between the two reads. Reconcile via a follow-up /rollback before any further /promote — the data plane is currently serving `committed_hash` but the operator who issued the rollback thinks it is serving `preview_hash`."
           runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryStateDriftDetected.md"
+
+      # ADR-0007 post-promote canary supervisor. registry_canary_decisions_total
+      # ticks `rolled_back` only when the supervisor observed markup-svc errors
+      # above the configured threshold over the canary window and called its own
+      # RollbackChampion. That means the data plane just reverted to the
+      # previous hash without an operator in the loop — humans need to know
+      # immediately so they can investigate the rule that triggered it.
+      - alert: RegistryCanaryAutoRollback
+        expr: sum(increase(registry_canary_decisions_total{decision="rolled_back"}[5m])) > 0
+        for: 0m
+        labels:
+          severity: critical
+          service: model-registry
+        annotations:
+          summary: "model-registry auto-rolled back a champion (ADR-0007 canary)"
+          description: "{{ $value | printf \"%.0f\" }} auto-rollback decision(s) in the last 5m. registry_canary_decisions_total{decision=rolled_back} ticked, meaning the canary supervisor observed markup-svc errors above the threshold over the configured window and reverted the champion. The active rule set is now the previous hash; the failed candidate is still uploaded but no longer live."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryCanaryAutoRollback.md"
