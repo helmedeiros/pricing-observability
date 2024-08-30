@@ -142,6 +142,7 @@ EOF
   REGISTRY_STORE_BACKEND=fs \
   REGISTRY_STORE_ROOT="$DATA_DIR" \
   REGISTRY_INSTANCES_CONFIG="$INSTANCES_CFG" \
+  REGISTRY_BUSINESS_STATS_PROM_URL="$PROM_URL" \
   OTEL_SERVICE_NAME=model-registry \
     "$REGISTRY_BIN" >"$REG_LOG" 2>&1 &
   REG_PID=$!
@@ -455,6 +456,62 @@ else
       bad "alert-sink never received the synthetic alert (route + webhook integration broken)"
     fi
   fi
+fi
+
+# --- 7. ADR-0010/0011 read surfaces + ADR-0007 canary metric wiring -----
+#
+# /env/{env}/business-stats and /artifact/{a}/diff/{b} are read-only;
+# wiring regressions on either route would 404 silently in production
+# until an operator hit them. Canary supervisor decisions are
+# load-dependent (the supervisor only ticks the counter when markup-svc
+# errors cross the threshold over the window), so this script does not
+# try to trigger one; it asserts the metric is registered so a removed
+# collector surfaces here rather than at incident time.
+
+echo "==> ADR-0010 business-stats + ADR-0011 diff + ADR-0007 canary metric"
+
+BS_STATUS="$(curl -s -o /tmp/mr-bs.json -w '%{http_code}' "$REGISTRY_URL/env/production/business-stats")"
+case "$BS_STATUS" in
+  200)
+    BS_ENV="$(jq -r .env </tmp/mr-bs.json 2>/dev/null)"
+    BS_SINCE="$(jq -r .since </tmp/mr-bs.json 2>/dev/null)"
+    if [ "$BS_ENV" = "production" ] && [ -n "$BS_SINCE" ]; then
+      ok "business-stats → 200 env=$BS_ENV since=$BS_SINCE"
+    else
+      bad "business-stats 200 but body missing env/since: $(cat /tmp/mr-bs.json)"
+    fi
+    ;;
+  502)
+    note "business-stats → 502 business_stats_upstream (Prometheus rejected the query; route mounted OK)"
+    ok "business-stats route mounted (502 from upstream is acceptable)"
+    ;;
+  503)
+    bad "business-stats → 503 business_stats_disabled — REGISTRY_BUSINESS_STATS_PROM_URL did not reach Deps.BusinessStats"
+    ;;
+  *)
+    bad "business-stats → unexpected HTTP $BS_STATUS"
+    ;;
+esac
+rm -f /tmp/mr-bs.json
+
+DIFF_STATUS="$(curl -s -o /tmp/mr-diff.json -w '%{http_code}' "$REGISTRY_URL/artifact/$HASH/diff/$CHALLENGER_HASH")"
+if [ "$DIFF_STATUS" = "200" ]; then
+  DIFF_FROM="$(jq -r .from </tmp/mr-diff.json 2>/dev/null)"
+  DIFF_TO="$(jq -r .to </tmp/mr-diff.json 2>/dev/null)"
+  if [ "$DIFF_FROM" = "$HASH" ] && [ "$DIFF_TO" = "$CHALLENGER_HASH" ]; then
+    ok "diff → 200 from=$DIFF_FROM to=$DIFF_TO (empty Rules on both sides OK)"
+  else
+    bad "diff response carries wrong hashes: from=$DIFF_FROM want=$HASH; to=$DIFF_TO want=$CHALLENGER_HASH"
+  fi
+else
+  bad "diff → unexpected HTTP $DIFF_STATUS (route mount or hash lookup broken)"
+fi
+rm -f /tmp/mr-diff.json
+
+if curl -fsS "$REGISTRY_URL/metrics" | grep -q '^# TYPE registry_canary_decisions_total counter'; then
+  ok "registry_canary_decisions_total registered in /metrics"
+else
+  bad "registry_canary_decisions_total missing from /metrics — ADR-0007 collector wiring broken"
 fi
 
 # --- summary -------------------------------------------------------------
