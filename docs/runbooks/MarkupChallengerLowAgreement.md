@@ -4,7 +4,9 @@
 
 ## What this means
 
-The challenger and champion disagreed on the markup factor for more than 5% of /decide calls in the last 5 minutes, with at least 1000 comparisons in the window. The sample-size floor prevents the alert from flapping on quiet envs where a handful of disagreements look catastrophic in ratio.
+The challenger and champion disagreed on the markup factor for more than 5% of SAMPLED /decide calls in the last 5 minutes, with at least 1000 sampled comparisons in the window. The sample-size floor prevents the alert from flapping on quiet envs where a handful of disagreements look catastrophic in ratio.
+
+**Sampling caveat (ADR-0033):** when `--shadow-sample-rate < 1.0` the agreement metric reflects only the sampled fraction of decisions. Cross-reference `markup_challenger_sampled_total{sampled="true"}/(true+false)` to see the effective sample rate. At sample=0.1 a 5% sampled disagreement may correspond to a much smaller or much larger fraction of total /decide depending on where the disagreements concentrate. The team's promote-to-champion gate documented in model-registry ADR-0013 assumes high sample rate during calibration; drop the rate only after the gate has cleared once.
 
 Agreement is defined as champion and challenger producing the same `MarkupFactor` (within `factorEpsilon = 1e-9`) OR both declining (`ErrNoMatch`). Disagreement records the absolute delta in `markup_challenger_factor_delta`.
 

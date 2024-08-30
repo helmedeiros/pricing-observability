@@ -4,7 +4,9 @@
 
 ## What this means
 
-The challenger Decider missed its evaluation deadline (default 10 ms, set via `httpapi.DefaultShadowTimeout`) on more than 1% of /decide calls in the last 5 minutes. Timeouts are not counted as disagreement — they are missing signal — so the agreement metric degrades by however many comparisons silently dropped.
+The challenger Decider missed its evaluation deadline (default 10 ms, set via `httpapi.DefaultShadowTimeout`) on more than 1% of SAMPLED /decide calls in the last 5 minutes. Timeouts are not counted as disagreement — they are missing signal — so the agreement metric degrades by however many comparisons silently dropped.
+
+**Sampling caveat (ADR-0033):** when `--shadow-sample-rate < 1.0` the timeout rate is measured over the sampled fraction. The absolute timeout count is lower than at sample=1.0, but the rate-as-fraction is the meaningful signal — a slow challenger times out at the same proportion regardless of sample rate. The `markup_challenger_decide_duration_seconds` histogram (ADR-0033) lets you see the latency distribution directly; a p99 climbing toward 10 ms predicts this alert before it fires.
 
 The customer-visible response path is unaffected: the champion answered synchronously and the challenger ran in a detached goroutine. The alert is about the shadow signal's quality, not the customer's experience.
 
