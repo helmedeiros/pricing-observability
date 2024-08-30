@@ -35,6 +35,39 @@ groups:
           description: "Target {{ $labels.instance }} has been down for 2m. Check gateway routing for /metrics and that markup-svc is running with --metrics-enabled."
           runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/MarkupMetricsScrapeDown.md"
 
+      # ADR-0032 shadow Decider. eval_timeout fires when the
+      # challenger missed its deadline inside /decide. A sustained
+      # timeout rate means the challenger Decider is too slow under
+      # load — the comparison signal degrades because timeouts are
+      # not classified as disagreement (no signal).
+      - alert: MarkupChallengerEvalTimeoutRate
+        expr: sum(rate(markup_challenger_eval_timeout_total[5m])) / (sum(rate(markup_challenger_agreement_total[5m])) + sum(rate(markup_challenger_eval_timeout_total[5m]))) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: markup-svc
+        annotations:
+          summary: "markup-svc shadow eval-timeout rate > 1% for 5m"
+          description: "Challenger evaluation missed its deadline on more than 1% of comparisons over 5m. The challenger Decider is too slow for the configured shadow timeout (default 10ms). Either tune the timeout, or roll back the challenger and investigate why it is slow."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/MarkupChallengerEvalTimeoutRate.md"
+
+      # ADR-0032 shadow Decider. agreement < 95% over a meaningful
+      # sample window is a clear "this challenger is not a drop-in
+      # replacement" signal. The operator decides whether the
+      # divergence is intentional (rule changes shipped expected
+      # disagreement) or a regression. We require >= 1000 samples
+      # so a quiet env does not flap the alert.
+      - alert: MarkupChallengerLowAgreement
+        expr: (sum(rate(markup_challenger_agreement_total{agree="true"}[5m])) / sum(rate(markup_challenger_agreement_total[5m]))) < 0.95 and (sum(increase(markup_challenger_agreement_total[5m])) > 1000)
+        for: 10m
+        labels:
+          severity: warning
+          service: markup-svc
+        annotations:
+          summary: "markup-svc shadow agreement < 95% over 1k+ samples for 10m"
+          description: "Challenger agreement ratio is {{ $value | printf \"%.4f\" }} over the last 5m with at least 1000 samples. If the divergence is intentional (rule edit ships expected disagreement) document it; otherwise treat the challenger as a regression and reject."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/MarkupChallengerLowAgreement.md"
+
   - name: platform-spans
     interval: 30s
     rules:
