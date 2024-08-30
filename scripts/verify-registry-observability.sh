@@ -567,6 +567,68 @@ else
   bad "registry_rollbacks_total{outcome=rate_limited} did not tick (val=$PROM_RL_VAL) — counter wiring broken"
 fi
 
+# --- 9. ADR-0006 pre-promote Diagnose gate -------------------------------
+#
+# Upload a rule with factor=-1 (markup IssueInvalidFactor SeverityError),
+# promote as champion. markup-svc's reload endpoint returns 400 with
+# healthy:false; the rolling deployer's parseDiagnoseRejection matches
+# the sentinel and short-circuits to OutcomeDiagnoseRejected; the
+# handler returns 422 promote_rejected with a diagnose envelope.
+#
+# Asserts route mounted, deployer detection wired, counter labelled.
+
+echo "==> ADR-0006 pre-promote Diagnose gate"
+
+DIAGNOSE_CSV='name,condition,factor,priority
+verify_obs_diagnose,customer_tier == '"'"'enterprise'"'"',-1.0,99
+'
+
+BOUNDARY3="MRD$(date +%s%N)"
+UPLOAD_BODY3="$(mktemp -t mr-upload-d.XXXXXX)"
+{
+  printf -- "--%s\r\n" "$BOUNDARY3"
+  printf 'Content-Disposition: form-data; name="source"; filename="rules.csv"\r\n'
+  printf 'Content-Type: text/csv\r\n\r\n'
+  printf '%s\r\n' "$DIAGNOSE_CSV"
+  printf -- "--%s--\r\n" "$BOUNDARY3"
+} >"$UPLOAD_BODY3"
+
+DIAG_HASH="$(curl -fsS -X POST "$REGISTRY_URL/upload" \
+  -H "Content-Type: multipart/form-data; boundary=$BOUNDARY3" \
+  --data-binary @"$UPLOAD_BODY3" | jq -r .hash)"
+rm -f "$UPLOAD_BODY3"
+[ -n "$DIAG_HASH" ] && [ "$DIAG_HASH" != "null" ] || { bad "diagnose-probe upload returned no hash"; exit 1; }
+ok "diagnose-probe upload → hash=$DIAG_HASH"
+
+PROM_BODY="$(mktemp -t mr-pr.XXXXXX)"
+PROM_STATUS="$(curl -s -o "$PROM_BODY" -w '%{http_code}' -X POST "$REGISTRY_URL/promote" \
+  -H 'Content-Type: application/json' \
+  -d "$(jq -n --arg h "$DIAG_HASH" '{hash:$h, env:"production", role:"champion", operator:"verify-obs", reason:"diagnose probe"}')")"
+
+if [ "$PROM_STATUS" = "422" ]; then
+  REASON="$(jq -r .reason <"$PROM_BODY" 2>/dev/null)"
+  DIAG_KIND="$(jq -r '.diagnose.errors[0].kind // ""' <"$PROM_BODY" 2>/dev/null)"
+  if [ "$REASON" = "diagnose_rejected" ]; then
+    ok "promote → 422 reason=$REASON kind=$DIAG_KIND"
+  else
+    bad "422 returned but reason!='diagnose_rejected': $(cat "$PROM_BODY")"
+  fi
+else
+  bad "promote of negative-factor rule returned HTTP $PROM_STATUS — Diagnose gate not wired"
+fi
+rm -f "$PROM_BODY"
+
+note "waiting 6s for prom scrape after Diagnose rejection"
+sleep 6
+
+PROM_DG="$(curl -fsS "$PROM_URL/api/v1/query" --data-urlencode 'query=sum(registry_promotions_total{outcome="diagnose_rejected"})')"
+PROM_DG_VAL="$(echo "$PROM_DG" | jq -r '.data.result[0].value[1] // "0"')"
+if [ "$(echo "$PROM_DG_VAL > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+  ok "Prometheus registry_promotions_total{outcome=diagnose_rejected} = $PROM_DG_VAL"
+else
+  bad "registry_promotions_total{outcome=diagnose_rejected} did not tick (val=$PROM_DG_VAL) — ADR-0006 wiring broken"
+fi
+
 # --- summary -------------------------------------------------------------
 
 echo
