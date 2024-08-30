@@ -143,6 +143,8 @@ EOF
   REGISTRY_STORE_ROOT="$DATA_DIR" \
   REGISTRY_INSTANCES_CONFIG="$INSTANCES_CFG" \
   REGISTRY_BUSINESS_STATS_PROM_URL="$PROM_URL" \
+  REGISTRY_WRITE_RATE_REFILL=1s \
+  REGISTRY_WRITE_RATE_BURST=20 \
   OTEL_SERVICE_NAME=model-registry \
     "$REGISTRY_BIN" >"$REG_LOG" 2>&1 &
   REG_PID=$!
@@ -512,6 +514,57 @@ if curl -fsS "$REGISTRY_URL/metrics" | grep -q '^# TYPE registry_canary_decision
   ok "registry_canary_decisions_total registered in /metrics"
 else
   bad "registry_canary_decisions_total missing from /metrics — ADR-0007 collector wiring broken"
+fi
+
+# --- 8. ADR-0008 write rate-limit ---------------------------------------
+#
+# Boot env sets WRITE_RATE_BURST=20 + REFILL=1s. The four earlier
+# write probes (champion promote, no-history rollback, challenger
+# promote, reject) consumed 4 tokens against the "production" env's
+# bucket; ~16 remain. Probe issues rapid /rollback POSTs until a 429
+# surfaces (cap 30 attempts so a missing limiter does not hang the
+# script forever) then asserts the rejection carries Retry-After and
+# that the rate_limited outcome counter ticks.
+
+echo "==> ADR-0008 write rate-limit"
+
+LIMITED_STATUS=""
+LIMITED_RETRY=""
+for i in $(seq 1 30); do
+  RESP_HEADERS="$(mktemp -t mr-rl.XXXXXX)"
+  STATUS="$(curl -s -o /dev/null -D "$RESP_HEADERS" -w '%{http_code}' \
+    -X POST "$REGISTRY_URL/rollback" -H 'Content-Type: application/json' \
+    -d '{"env":"production","operator":"verify-obs","reason":"rate-limit probe"}')"
+  if [ "$STATUS" = "429" ]; then
+    LIMITED_STATUS="$STATUS"
+    LIMITED_RETRY="$(grep -i '^retry-after:' "$RESP_HEADERS" | tr -d '\r' | awk '{print $2}')"
+    rm -f "$RESP_HEADERS"
+    note "429 observed after $i rapid /rollback calls"
+    break
+  fi
+  rm -f "$RESP_HEADERS"
+done
+
+if [ -n "$LIMITED_STATUS" ]; then
+  ok "rate-limit returned HTTP 429"
+  if [ -n "$LIMITED_RETRY" ] && [ "$LIMITED_RETRY" -ge 1 ] 2>/dev/null; then
+    ok "Retry-After header carried: ${LIMITED_RETRY}s"
+  else
+    bad "429 returned without a parseable Retry-After header (got: '$LIMITED_RETRY')"
+  fi
+else
+  bad "30 rapid /rollback calls produced no 429 — limiter not engaged (env or wiring broken)"
+fi
+
+note "waiting 6s for prom scrape after rate-limit burst"
+sleep 6
+
+PROM_RL="$(curl -fsS "$PROM_URL/api/v1/query" --data-urlencode 'query=sum(registry_rollbacks_total{outcome="rate_limited"})')"
+PROM_RL_VAL="$(echo "$PROM_RL" | jq -r '.data.result[0].value[1] // "0"')"
+if [ "$(echo "$PROM_RL_VAL > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+  ok "Prometheus registry_rollbacks_total{outcome=rate_limited} = $PROM_RL_VAL"
+else
+  bad "registry_rollbacks_total{outcome=rate_limited} did not tick (val=$PROM_RL_VAL) — counter wiring broken"
 fi
 
 # --- summary -------------------------------------------------------------
