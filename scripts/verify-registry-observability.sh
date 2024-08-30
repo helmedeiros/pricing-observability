@@ -199,6 +199,48 @@ ROLLBACK_STATUS="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$REGISTRY_URL
   -d '{"env":"production","operator":"verify-obs","reason":"obs e2e"}')"
 note "rollback → HTTP $ROLLBACK_STATUS (400 no_history expected on a single-champion env)"
 
+# --- 2b. Challenger reject (ADR-0009) ------------------------------------
+#
+# Upload a second artifact, promote as challenger (registry-side
+# metadata only — no rolling push since the role is not champion),
+# then reject. Exercises the new /reject route, the reject_challenger
+# audit action, and the registry_rejects_total counter.
+
+CHALLENGER_CSV='name,condition,factor,priority
+verify_obs_challenger,customer_tier == '"'"'pro'"'"',1.11,50
+'
+
+BOUNDARY2="MRC$(date +%s%N)"
+UPLOAD_BODY2="$(mktemp -t mr-upload-c.XXXXXX)"
+{
+  printf -- "--%s\r\n" "$BOUNDARY2"
+  printf 'Content-Disposition: form-data; name="source"; filename="rules.csv"\r\n'
+  printf 'Content-Type: text/csv\r\n\r\n'
+  printf '%s\r\n' "$CHALLENGER_CSV"
+  printf -- "--%s--\r\n" "$BOUNDARY2"
+} >"$UPLOAD_BODY2"
+
+CHALLENGER_HASH="$(curl -fsS -X POST "$REGISTRY_URL/upload" \
+  -H "Content-Type: multipart/form-data; boundary=$BOUNDARY2" \
+  --data-binary @"$UPLOAD_BODY2" | jq -r .hash)"
+rm -f "$UPLOAD_BODY2"
+[ -n "$CHALLENGER_HASH" ] && [ "$CHALLENGER_HASH" != "null" ] || { bad "challenger upload returned no hash"; exit 1; }
+ok "challenger upload → hash=$CHALLENGER_HASH"
+
+curl -fsS -X POST "$REGISTRY_URL/promote" -H 'Content-Type: application/json' \
+  -d "$(jq -n --arg h "$CHALLENGER_HASH" '{hash:$h, env:"production", role:"challenger", operator:"verify-obs", reason:"shadow trial"}')" \
+  >/dev/null || { bad "challenger promote failed"; exit 1; }
+ok "challenger promote → committed"
+
+REJECT_RESP="$(curl -fsS -X POST "$REGISTRY_URL/reject" -H 'Content-Type: application/json' \
+  -d '{"env":"production","operator":"verify-obs","reason":"verify-obs e2e"}')"
+REJECTED_HASH="$(echo "$REJECT_RESP" | jq -r .rejected_hash)"
+if [ "$REJECTED_HASH" = "$CHALLENGER_HASH" ]; then
+  ok "reject → cleared challenger hash=$REJECTED_HASH"
+else
+  bad "reject response carried wrong rejected_hash: got=$REJECTED_HASH want=$CHALLENGER_HASH"
+fi
+
 # Give the OTel exporter + Prom scrape one full window to flush.
 note "waiting 18s for collector flush + prom scrape"
 sleep 18
@@ -255,6 +297,14 @@ if [ "$(echo "$PROM_PROMOTE_VAL > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; th
   ok "Prometheus registry_promotions_total{outcome=ok} = $PROM_PROMOTE_VAL"
 else
   bad "registry_promotions_total{outcome=ok} did not tick (val=$PROM_PROMOTE_VAL) — scrape config or counter wiring broken"
+fi
+
+PROM_REJECT="$(curl -fsS "$PROM_URL/api/v1/query" --data-urlencode 'query=sum(registry_rejects_total{outcome="ok"})')"
+PROM_REJECT_VAL="$(echo "$PROM_REJECT" | jq -r '.data.result[0].value[1] // "0"')"
+if [ "$(echo "$PROM_REJECT_VAL > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+  ok "Prometheus registry_rejects_total{outcome=ok} = $PROM_REJECT_VAL"
+else
+  bad "registry_rejects_total{outcome=ok} did not tick (val=$PROM_REJECT_VAL) — ADR-0009 wiring or scrape broken"
 fi
 
 PROM_UP="$(curl -fsS "$PROM_URL/api/v1/query" --data-urlencode 'query=up{job="model-registry"}')"
