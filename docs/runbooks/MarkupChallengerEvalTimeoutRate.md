@@ -14,6 +14,7 @@ The customer-visible response path is unaffected: the champion answered synchron
 2. **Open the markup-decide-overview dashboard** — panels 7 and 9 show the timeout rate over time. Look for the start time: did the rate climb after a specific `mrctl promote --role challenger`?
 3. **Compare champion + challenger latency** — `histogram_quantile(0.99, sum by(le)(rate(markup_decide_duration_seconds_bucket[5m])))` is the champion path. The challenger ran on the same machine; a champion p99 well under 10 ms means the challenger Decider is the slow one.
 4. **Check Jaeger** — `markup.challenger.evaluate` span. The span's duration tells you what the challenger Decider's actual cost looks like. Compare against the deadline.
+5. **Open Kibana** — [saved search `runbook: shadow eval timeout`](http://localhost:5601/app/discover#/view/runbook-shadow-eval-timeout) lists every event where the shadow goroutine missed its deadline. The `attrs.trace_id` column links into Jaeger for the matching trace.
 
 ## If confirmed
 

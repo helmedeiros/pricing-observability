@@ -14,7 +14,7 @@ The customer is paying the champion's factor. The challenger never reaches the r
 
 1. **Open the markup-decide-overview dashboard** — panel 8 (agreement ratio) and panel 10 (factor delta percentiles). Look at the trend: did the ratio drop suddenly (suggesting a specific rule change) or gradually (suggesting a slow distribution drift)?
 2. **Compare champion + challenger hashes** — `mrctl state <env>` shows both. `mrctl diff <champion> <challenger>` (registry ADR-0011) lists which rules changed. The added or modified rules are the cause.
-3. **Sample a disagreement trace** — Kibana saved search `runbook: shadow disagreements` (TODO until the saved search lands) finds /decide events with `markup.challenger.evaluate` spans and a recorded factor delta. The request payload + champion factor + challenger factor are visible.
+3. **Sample a disagreement trace** — [saved search `runbook: shadow disagreements`](http://localhost:5601/app/discover#/view/runbook-shadow-disagreements) lists every /decide where champion and challenger produced different factors. The `attrs.champion_factor` + `attrs.challenger_factor` + `attrs.delta` columns make the disagreement size visible at a glance; `attrs.trace_id` links into Jaeger for the matching trace.
 
 ## If confirmed
 
