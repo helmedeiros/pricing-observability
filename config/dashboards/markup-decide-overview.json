@@ -105,6 +105,127 @@
         }
       ],
       "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 3 } }
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Challenger agreement RPS (ADR-0032)",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (agree) (rate(markup_challenger_agreement_total[1m]))",
+          "legendFormat": "agree={{agree}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Challenger one-sided + timeout + error RPS",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (side) (rate(markup_challenger_one_sided_total[1m]))",
+          "legendFormat": "{{side}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(markup_challenger_eval_timeout_total[1m]))",
+          "legendFormat": "timeout",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(rate(markup_challenger_eval_errors_total[1m]))",
+          "legendFormat": "error",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 8,
+      "type": "stat",
+      "title": "Agreement ratio (5m)",
+      "gridPos": { "x": 0, "y": 24, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(markup_challenger_agreement_total{agree=\"true\"}[5m])) / sum(rate(markup_challenger_agreement_total[5m]))",
+          "legendFormat": "agreement",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.9 },
+              { "color": "green", "value": 0.95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "stat",
+      "title": "Eval-timeout rate (5m)",
+      "gridPos": { "x": 6, "y": 24, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum(rate(markup_challenger_eval_timeout_total[5m])) / (sum(rate(markup_challenger_agreement_total[5m])) + sum(rate(markup_challenger_eval_timeout_total[5m])))",
+          "legendFormat": "timeout rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 4,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.005 },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Factor delta p50/p95/p99 on disagreement",
+      "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(markup_challenger_factor_delta_bucket[5m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(markup_challenger_factor_delta_bucket[5m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(markup_challenger_factor_delta_bucket[5m])))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" } }
     }
   ]
 }
