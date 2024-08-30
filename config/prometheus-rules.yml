@@ -160,3 +160,34 @@ groups:
           summary: "model-registry auto-rolled back a champion (ADR-0007 canary)"
           description: "{{ $value | printf \"%.0f\" }} auto-rollback decision(s) in the last 5m. registry_canary_decisions_total{decision=rolled_back} ticked, meaning the canary supervisor observed markup-svc errors above the threshold over the configured window and reverted the champion. The active rule set is now the previous hash; the failed candidate is still uploaded but no longer live."
           runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryCanaryAutoRollback.md"
+
+      # ADR-0006 pre-promote Diagnose gate. The diagnose_rejected outcome
+      # surfaces when markup-svc's reload endpoint reports an unhealthy
+      # rule set. One rejection is a typo; sustained rejections mean the
+      # authoring pipeline is emitting structurally broken rules and the
+      # team needs to investigate before more bad rules pile up.
+      - alert: RegistryDiagnoseRejectionRate
+        expr: sum(rate(registry_promotions_total{outcome="diagnose_rejected"}[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: model-registry
+        annotations:
+          summary: "model-registry /promote diagnose_rejected rate > 0.01/s for 5m"
+          description: "registry_promotions_total{outcome=diagnose_rejected} rate is {{ $value | printf \"%.3f\" }} req/s sustained over 5m. The pre-promote Diagnose gate is rejecting candidate rule sets at a non-trivial rate. Look at the audit ledger to find which operator + which artifact + which Diagnose issue kinds are repeating."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryDiagnoseRejectionRate.md"
+
+      # ADR-0008 per-env write rate-limit. A sustained rate_limited
+      # signal means an operator (or a script) is hammering /promote or
+      # /rollback faster than the bucket refills. Distinct from a normal
+      # workflow that hits 429 once and waits Retry-After.
+      - alert: RegistryWriteRateLimited
+        expr: sum(rate(registry_promotions_total{outcome="rate_limited"}[5m])) + sum(rate(registry_rollbacks_total{outcome="rate_limited"}[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: model-registry
+        annotations:
+          summary: "model-registry write rate-limited > 0.01/s for 5m"
+          description: "Combined rate_limited rate across promotions + rollbacks is {{ $value | printf \"%.3f\" }} req/s sustained over 5m. ADR-0008's token bucket is denying writes. An operator script may be retrying without honoring Retry-After, or two operators are racing on the same env. Check the audit ledger for high-frequency repeats from a single operator."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryWriteRateLimited.md"
