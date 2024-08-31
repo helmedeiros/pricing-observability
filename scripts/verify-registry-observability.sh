@@ -143,6 +143,7 @@ EOF
   REGISTRY_STORE_ROOT="$DATA_DIR" \
   REGISTRY_INSTANCES_CONFIG="$INSTANCES_CFG" \
   REGISTRY_BUSINESS_STATS_PROM_URL="$PROM_URL" \
+  REGISTRY_SHADOW_STATS_PROM_URL="$PROM_URL" \
   REGISTRY_WRITE_RATE_REFILL=1s \
   REGISTRY_WRITE_RATE_BURST=20 \
   OTEL_SERVICE_NAME=model-registry \
@@ -627,6 +628,95 @@ if [ "$(echo "$PROM_DG_VAL > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
   ok "Prometheus registry_promotions_total{outcome=diagnose_rejected} = $PROM_DG_VAL"
 else
   bad "registry_promotions_total{outcome=diagnose_rejected} did not tick (val=$PROM_DG_VAL) — ADR-0006 wiring broken"
+fi
+
+# --- 10. ADR-0031/0032/0033 + ADR-0012/0013 shadow lifecycle -------------
+#
+# Drives the markup-svc shadow surface through the registry's challenger
+# push, then reads the comparison metrics through the registry's
+# /shadow-stats endpoint. Requires markup-svc:main (or any tag with
+# --shadow-admin) and the registry started with --shadow-stats-prom-url.
+
+echo "==> ADR-0031/0032/0033 + ADR-0012/0013 shadow lifecycle"
+
+# Probe markup-svc's /admin/load-challenger directly to confirm the
+# shadow surface is mounted before driving the registry path. A 404
+# means the compose markup-svc was not built with --shadow-admin.
+DIRECT_SHADOW_PROBE="$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$MARKUP_SVC_URL/admin/challenger")"
+if [ "$DIRECT_SHADOW_PROBE" = "404" ]; then
+  note "SKIP — markup-svc at $MARKUP_SVC_URL has no /admin/challenger route. Bring it up with --shadow-admin (compose-managed via decision-gateway/docker-compose.yaml after the markup-svc:main bump)."
+else
+  # Build a challenger CSV. Same enterprise rule as the original
+  # upload but a different factor so the shadow path sees disagreement.
+  SHADOW_CSV='name,condition,factor,priority
+shadow_obs,customer_tier == '"'"'enterprise'"'"',1.50,99
+'
+  BOUNDARY_SH="MRS$(date +%s%N)"
+  UPLOAD_BODY_SH="$(mktemp -t mr-shadow.XXXXXX)"
+  {
+    printf -- "--%s\r\n" "$BOUNDARY_SH"
+    printf 'Content-Disposition: form-data; name="source"; filename="rules.csv"\r\n'
+    printf 'Content-Type: text/csv\r\n\r\n'
+    printf '%s\r\n' "$SHADOW_CSV"
+    printf -- "--%s--\r\n" "$BOUNDARY_SH"
+  } >"$UPLOAD_BODY_SH"
+
+  SHADOW_HASH="$(curl -fsS -X POST "$REGISTRY_URL/upload" \
+    -H "Content-Type: multipart/form-data; boundary=$BOUNDARY_SH" \
+    --data-binary @"$UPLOAD_BODY_SH" | jq -r .hash)"
+  rm -f "$UPLOAD_BODY_SH"
+  [ -n "$SHADOW_HASH" ] && [ "$SHADOW_HASH" != "null" ] || { bad "shadow-probe upload returned no hash"; exit 1; }
+  ok "shadow-probe upload → hash=$SHADOW_HASH"
+
+  # Promote as challenger; the registry fans out to markup-svc:/admin/load-challenger.
+  PROMOTE_RESP="$(curl -fsS -X POST "$REGISTRY_URL/promote" -H 'Content-Type: application/json' \
+    -d "$(jq -n --arg h "$SHADOW_HASH" '{hash:$h, env:"production", role:"challenger", operator:"verify-obs", reason:"shadow probe"}')")"
+  PROMOTE_OUTCOME="$(echo "$PROMOTE_RESP" | jq -r '.deploy.outcome // ""')"
+  if [ "$PROMOTE_OUTCOME" = "ok" ]; then
+    ok "challenger promote → deploy.outcome=ok (registry pushed to markup-svc)"
+  else
+    bad "challenger promote deploy.outcome=$PROMOTE_OUTCOME body=$PROMOTE_RESP"
+  fi
+
+  # Drive /decide a few times so the shadow goroutine runs.
+  for i in 1 2 3 4 5; do
+    curl -fsS -X POST "$MARKUP_SVC_URL/decide" -H 'Content-Type: application/json' \
+      -d '{"product_id":"p1","customer_tier":"enterprise","amount":100}' >/dev/null \
+      || { bad "decide #$i failed"; break; }
+  done
+  ok "5 /decide calls fired through markup-svc with shadow active"
+
+  note "waiting 18s for shadow goroutines + prom scrape"
+  sleep 18
+
+  # Read /shadow-stats — the registry projects the markup-svc metrics.
+  SHADOW_STATS="$(curl -fsS "$REGISTRY_URL/shadow-stats?since=1m")"
+  SHADOW_SAMPLES="$(echo "$SHADOW_STATS" | jq -r '.agreement_samples // 0')"
+  SHADOW_LATENCY_P99="$(echo "$SHADOW_STATS" | jq -r '.challenger_latency_p99 // 0')"
+  SHADOW_SAMPLE_RATE="$(echo "$SHADOW_STATS" | jq -r '.effective_sample_rate // 0')"
+  if [ "$(echo "$SHADOW_SAMPLES > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+    ok "/shadow-stats reports samples=$SHADOW_SAMPLES (ADR-0013 surface)"
+  else
+    bad "/shadow-stats reports zero samples — shadow goroutines not running, or markup_challenger_agreement_total not scraped"
+  fi
+  if [ "$(echo "$SHADOW_LATENCY_P99 > 0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+    ok "/shadow-stats reports challenger_latency_p99=${SHADOW_LATENCY_P99}s (ADR-0033 histogram populated)"
+  else
+    bad "/shadow-stats reports zero challenger_latency_p99 — markup_challenger_decide_duration_seconds not emitting"
+  fi
+  if [ "$SHADOW_SAMPLE_RATE" = "1" ] || [ "$SHADOW_SAMPLE_RATE" = "1.0" ]; then
+    ok "/shadow-stats reports effective_sample_rate=$SHADOW_SAMPLE_RATE (sampled counter wiring)"
+  fi
+
+  # Reject the challenger; registry clears markup-svc's shadow holder.
+  REJECT_RESP="$(curl -fsS -X POST "$REGISTRY_URL/reject" -H 'Content-Type: application/json' \
+    -d '{"env":"production","operator":"verify-obs","reason":"shadow probe done"}')"
+  REJECT_OUTCOME="$(echo "$REJECT_RESP" | jq -r '.deploy.outcome // ""')"
+  if [ "$REJECT_OUTCOME" = "ok" ]; then
+    ok "challenger reject → deploy.outcome=ok (registry cleared markup-svc)"
+  else
+    bad "challenger reject deploy.outcome=$REJECT_OUTCOME body=$REJECT_RESP"
+  fi
 fi
 
 # --- summary -------------------------------------------------------------
