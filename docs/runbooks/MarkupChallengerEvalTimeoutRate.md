@@ -1,6 +1,8 @@
 # MarkupChallengerEvalTimeoutRate
 
-**Severity:** warning  **Service:** markup-svc  **Expression:** `sum(rate(markup_challenger_eval_timeout_total[5m])) / (sum(rate(markup_challenger_agreement_total[5m])) + sum(rate(markup_challenger_eval_timeout_total[5m]))) > 0.01`
+**Severity:** warning  **Service:** markup-svc  **Expression:** `sum by (env) (rate(markup_challenger_eval_timeout_total[5m])) / (sum by (env) (rate(markup_challenger_agreement_total[5m])) + sum by (env) (rate(markup_challenger_eval_timeout_total[5m]))) > 0.01`
+
+The alert payload names the impacted `env` (ADR-0034 in markup-svc adds env labels to all `markup_challenger_*` series, so the alert fires per env independently rather than aggregating across a multi-env scrape).
 
 ## What this means
 

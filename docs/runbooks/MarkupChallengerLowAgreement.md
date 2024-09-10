@@ -1,6 +1,8 @@
 # MarkupChallengerLowAgreement
 
-**Severity:** warning  **Service:** markup-svc  **Expression:** `(sum(rate(markup_challenger_agreement_total{agree="true"}[5m])) / sum(rate(markup_challenger_agreement_total[5m]))) < 0.95 and (sum(increase(markup_challenger_agreement_total[5m])) > 1000)`
+**Severity:** warning  **Service:** markup-svc  **Expression:** `(sum by (env) (rate(markup_challenger_agreement_total{agree="true"}[5m])) / sum by (env) (rate(markup_challenger_agreement_total[5m]))) < 0.95 and (sum by (env) (increase(markup_challenger_agreement_total[5m])) > 1000)`
+
+The alert payload names the impacted `env` (ADR-0034 in markup-svc adds env labels to all `markup_challenger_*` series, so the alert fires per env independently rather than aggregating across a multi-env scrape).
 
 ## What this means
 
