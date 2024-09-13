@@ -57,6 +57,22 @@ groups:
       # divergence is intentional (rule changes shipped expected
       # disagreement) or a regression. We require >= 1000 samples
       # so a quiet env does not flap the alert.
+      # ADR-0036 decision-event substrate. The sink drops events when
+      # the bounded queue fills (S3 too slow) or when retries exhaust
+      # (S3 unreachable). Any sustained drop rate means the learning
+      # loop is losing decision events — training sets get a sampling
+      # bias toward periods when the substrate was healthy.
+      - alert: MarkupDecisionSinkDropRate
+        expr: sum by (env, reason) (rate(markup_decision_sink_dropped_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: markup-svc
+        annotations:
+          summary: "markup-svc decision-event sink dropping events for 5m (env={{ $labels.env }} reason={{ $labels.reason }})"
+          description: "markup_decision_sink_dropped_total rate is {{ $value | printf \"%.3f\" }} events/s in env={{ $labels.env }} with reason={{ $labels.reason }} sustained over 5m. The learning-loop substrate is losing events. buffer_full means the in-memory queue overflowed (S3 slow); flush_failed means the bounded backoff exhausted (S3 unreachable). Either way the markup.decision.v1 stream has gaps. Check the markup.decision.sink.* logs and the MinIO/S3 health."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/MarkupDecisionSinkDropRate.md"
+
       - alert: MarkupChallengerLowAgreement
         expr: (sum by (env) (rate(markup_challenger_agreement_total{agree="true"}[5m])) / sum by (env) (rate(markup_challenger_agreement_total[5m]))) < 0.95 and (sum by (env) (increase(markup_challenger_agreement_total[5m])) > 1000)
         for: 10m
