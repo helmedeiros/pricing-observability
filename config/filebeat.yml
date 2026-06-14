@@ -4,7 +4,7 @@
 # Pipeline:
 #   docker container stdout
 #   -> Filebeat docker.autodiscover provider reads /var/lib/docker/containers
-#   -> drop_event filter: keep only ghcr.io/helmedeiros/{markup-svc,traffic-gen,decision-gateway} containers
+#   -> drop_event filter: keep only ghcr.io/helmedeiros/{markup-svc,traffic-gen,decision-gateway,model-registry} containers
 #   -> decode_json_fields: parse the application-level JSON line into top-level fields
 #   -> Elasticsearch index platform-logs-YYYY.MM.DD
 #
@@ -30,7 +30,7 @@ filebeat.autodiscover:
         # ECS field that's empty during autodiscover template evaluation).
         - condition:
             regexp:
-              docker.container.image: "^ghcr\\.io/helmedeiros/(markup-svc|decision-gateway|traffic-gen)"
+              docker.container.image: "^ghcr\\.io/helmedeiros/(markup-svc|decision-gateway|traffic-gen|model-registry)"
           config:
             - type: container
               paths:
