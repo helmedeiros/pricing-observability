@@ -7,6 +7,11 @@ and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+
+- ADR-0011: model-registry alerting rules + exemplar storage. Four new alerts (`RegistryUploadFailureRate`, `RegistryPromotionFailureRate`, `RegistryDeployFailureRate` — warning; `RegistryStateDriftDetected` — critical) in a `model-registry` group of `config/prometheus-rules.yml`. `config/prometheus.yml` gains a `model-registry` scrape target on `host.docker.internal:8091`. The Prometheus container command gains `--enable-feature=exemplar-storage` so the `registry_deploy_duration_seconds` histogram's `trace_id` exemplars survive into the query API and Grafana drill-downs.
+- Runbooks: `RegistryUploadFailureRate.md`, `RegistryPromotionFailureRate.md`, `RegistryDeployFailureRate.md`, `RegistryStateDriftDetected.md`. Same shape as the v0.0.21 markup-svc + decision-gateway runbooks (what this means → first check → if confirmed → if false-positive → escalation).
+
 ## [0.0.24] - 2024-06-18
 
 Sample 100% of `/admin*` traces. Closes ADR-0018.

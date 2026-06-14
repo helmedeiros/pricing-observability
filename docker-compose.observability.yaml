@@ -152,6 +152,12 @@ services:
       # via a real volume + a sized retention.
       - "--storage.tsdb.retention.time=7d"
       - "--web.enable-lifecycle"
+      # Persist exemplars so Grafana panels can drill from a histogram
+      # bucket to the Jaeger trace via the trace_id label model-registry
+      # emits on registry_deploy_duration_seconds (ADR-0011). Default
+      # capacity is 100,000 exemplars — sufficient at the registry's
+      # operator-class throughput (admin-class endpoints, not per-request).
+      - "--enable-feature=exemplar-storage"
       # Log every PromQL query so operators can see what Jaeger's
       # Monitor tab + Grafana actually ask Prometheus for. Routed to
       # the container's stderr so 'docker logs prometheus' captures it.
