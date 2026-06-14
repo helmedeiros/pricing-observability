@@ -88,7 +88,7 @@ groups:
             Re-run GET /admin/diagnose on markup-svc for the issue list.
           runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/AdminHotReloadRejected.md"
 
-  # model-registry control-plane alerts (ADR-0011). The counters
+  # model-registry control-plane alerts (ADR-0019). The counters
   # registry_uploads_total / registry_promotions_total /
   # registry_rollbacks_total / registry_deploys_total /
   # registry_state_drift_total + the registry_deploy_duration_seconds
