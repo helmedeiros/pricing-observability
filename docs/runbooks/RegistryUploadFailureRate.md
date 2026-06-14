@@ -12,7 +12,7 @@ model-registry's `/upload` endpoint is rejecting or failing more than 1 upload e
    - `invalid` — malformed multipart body (truncated boundary, missing `source` part, wrong Content-Type).
    - `too_large` — payload exceeded the 16 MB ceiling (`DefaultMaxUploadBytes`).
    - `substrate_error` — fsstore Put failed (disk full, WAL corruption, permission).
-2. **Operator's trace** — Kibana: `msg:"registry.access" AND attrs.path:"/upload" AND attrs.status:>=400`. The `attrs.trace_id` field is a clickable Jaeger link (per ADR-0010); cross-reference with [recent error spans on model-registry](http://localhost:16686/search?service=model-registry&tags=%7B%22otel.status_code%22%3A%22ERROR%22%7D&lookback=15m&limit=20). The trace shows whether multipart parse, readUploadParts, or substrate Put errored.
+2. **Operator's trace** — [open saved search `runbook: registry upload failures`](http://localhost:5601/app/discover#/view/runbook-registry-upload-failures). The `attrs.trace_id` field is a clickable Jaeger link (per ADR-0010); cross-reference with [recent error spans on model-registry](http://localhost:16686/search?service=model-registry&tags=%7B%22otel.status_code%22%3A%22ERROR%22%7D&lookback=15m&limit=20). The trace shows whether multipart parse, readUploadParts, or substrate Put errored.
 3. **Audit-failure check** — Kibana: `msg:"registry.audit.write_failed"`. If present alongside the 4xx/5xx burst, the substrate write may be racing with audit ledger writes; check `registry_state_drift_total` rate too.
 
 ## If confirmed

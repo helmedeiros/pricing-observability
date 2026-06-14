@@ -10,7 +10,7 @@ A single sick markup-svc instance failing every push trips this alert quickly wi
 
 ## First check (5 min)
 
-1. **Per-instance breakdown** — Jaeger: filter `service=model-registry` + tag `otel.status_code=ERROR` over the firing window. `registry.deploy.push_to_instance` spans carry `instance.url`. Look for a single URL that dominates the failures.
+1. **Per-instance breakdown** — [open recent error spans on model-registry](http://localhost:16686/search?service=model-registry&tags=%7B%22otel.status_code%22%3A%22ERROR%22%7D&lookback=15m&limit=20). `registry.deploy.push_to_instance` spans carry `instance.url`. Look for a single URL that dominates the failures. Cross-reference HTTP-layer evidence in [runbook: registry promote failures](http://localhost:5601/app/discover#/view/runbook-registry-promote-failures).
 2. **`/healthz` on the suspect instance** — `curl <instance.url>/healthz`. If non-200, the instance is down.
 3. **markup-svc logs for the suspect** — Kibana: `service:"markup-svc" AND host:"<URL>"` over the last 15 min. Look for repeated `admin.reload.failed` or `decide.error` events.
 4. **`registry.audit.write_failed`** — Kibana: `msg:"registry.audit.write_failed" AND attrs.action:"promote"` over the firing window. If present, the audit gap may correlate with the deploy failures (operator action recorded as half-done).
