@@ -9,10 +9,14 @@ receivers:
 connectors:
   spanmetrics:
     namespace: traces.spanmetrics
+    # Buckets extend past 1s (1500ms, 2s, 3s, 5s) so a real gateway p99
+    # regression lands in a resolvable bucket rather than jumping from
+    # 1s straight to 5s (which produced the misleading 1.3-4.8 s p99
+    # estimates flagged in decision-gateway/scientific/platform-v0.1.0).
     histogram:
       explicit:
         buckets:
-          [100us, 250us, 500us, 1ms, 2ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s]
+          [100us, 250us, 500us, 1ms, 2ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 1500ms, 2s, 3s, 5s]
     metrics_flush_interval: 15s
 
 processors:
