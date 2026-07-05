@@ -30,7 +30,7 @@ filebeat.autodiscover:
         # ECS field that's empty during autodiscover template evaluation).
         - condition:
             regexp:
-              docker.container.image: "^ghcr\\.io/helmedeiros/(markup-svc|decision-gateway|traffic-gen|model-registry)"
+              docker.container.image: "^(ghcr\\.io/helmedeiros/(markup-svc|decision-gateway|traffic-gen|model-registry|funnel-sim)|decision-gateway-funnel-sim)"
           config:
             - type: container
               paths:
