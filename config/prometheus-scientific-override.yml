@@ -1,0 +1,131 @@
+# Scientific-override Prometheus config.
+#
+# Mirrors config/prometheus.yml exactly except the markup-svc scrape
+# target port. Consumed by docker-compose.scientific-override.yaml
+# which mounts this file at /etc/prometheus/prometheus.yml instead
+# of the default.
+#
+# Why: decision-gateway/docker-compose.scientific-override.yaml
+# remaps markup-svc's host port from :8080 to :18080 to work around
+# a host-side collision on port 8080. When Prometheus scrapes via
+# host.docker.internal (needed because the observability compose and
+# the platform compose run on different Docker networks), it needs
+# to know the host port has moved.
+#
+# Regenerate via:
+#   sed 's|host.docker.internal:8080|host.docker.internal:18080|g' \
+#     config/prometheus.yml > config/prometheus-scientific-override.yml
+#   # then re-prepend this header block manually.
+#
+# Prometheus scrape config for the Pricing Decision Platform.
+# See ADR-0003.
+#
+# Scrapes markup-svc's /metrics endpoint via host.docker.internal
+# (the gateway between the observability compose network and the
+# platform compose network). decision-gateway + traffic-gen do not
+# yet expose /metrics — added as those repos ship their own metric
+# adapters.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    platform: pricing-decision
+
+rule_files:
+  - /etc/prometheus/prometheus-rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  # markup-svc: exposes /metrics on the same listener as /decide
+  # (port 8080 inside the compose network). Reachable from the
+  # observability stack via host.docker.internal because the
+  # platform compose and observability compose run on separate
+  # Docker networks.
+  - job_name: markup-svc
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:18080"]
+        labels:
+          service: markup-svc
+
+  - job_name: decision-gateway
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:8090"]
+        labels:
+          service: decision-gateway
+
+  - job_name: traffic-gen
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:9101"]
+        labels:
+          service: traffic-gen
+
+  # model-registry control-plane v0.0.4+ (ADR-0019). Exposes
+  # registry_http_* + the lifecycle counters
+  # (uploads / promotions / rollbacks / deploys / state_drift)
+  # plus registry_deploy_duration_seconds with trace_id
+  # exemplars (OpenMetrics). --enable-feature=exemplar-storage
+  # on the prometheus container is what lets those exemplars
+  # survive into Grafana drill-downs. The registry's default
+  # listen is :8090 inside its own compose network; we publish
+  # it on host 8091 to avoid the collision with decision-gateway.
+  - job_name: model-registry
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:8091"]
+        labels:
+          service: model-registry
+
+  # funnel-sim: per-endpoint HTTP counters + histograms +
+  # funnel_event_sink_* counters. Reachable at
+  # host.docker.internal:8081 because funnel-sim runs in the platform
+  # compose (decision-gateway repo) while Prometheus runs in the
+  # observability compose. See funnel-sim ADR-0001 for the role and
+  # pricing-observability ADR-0020 for the correlation contract.
+  - job_name: funnel-sim
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:8081"]
+        labels:
+          service: funnel-sim
+
+  # pricing-metrics-aggregator: last-window gauges + run-outcome
+  # counter + run-duration histogram. Feeds the pricing-metrics
+  # Grafana dashboard + the pricing-metrics-aggregator AlertManager
+  # rule group. Reachable at host.docker.internal:8082 because the
+  # aggregator runs in the platform compose (decision-gateway repo)
+  # while Prometheus runs in the observability compose. See
+  # pricing-metrics-aggregator ADR-0001 for the service role and
+  # ADR-0002 for the labeled surface Grafana panels 9 + 10 consume.
+  - job_name: pricing-metrics-aggregator
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:8082"]
+        labels:
+          service: pricing-metrics-aggregator
+
+  # OTel Collector spanmetrics. The Collector aggregates spans into
+  # traces_spanmetrics_calls_total + traces_spanmetrics_duration_milliseconds
+  # histograms and exposes them on :8889/metrics. Jaeger's Monitor
+  # tab queries these series via METRICS_STORAGE_TYPE=prometheus. See
+  # ADR-0005.
+  - job_name: otel-collector-spanmetrics
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["otel-collector:8889"]
+        labels:
+          service: otel-collector-spanmetrics

@@ -1,0 +1,29 @@
+# Scientific-override for the observability compose stack. Companion
+# to decision-gateway/docker-compose.scientific-override.yaml.
+#
+# Purpose: when the platform stack is running with its own scientific
+# override (which remaps markup-svc host port :8080 → :18080 to work
+# around a host-side collision), Prometheus's markup-svc scrape target
+# has to move too — otherwise the observability layer can't reach
+# markup-svc's /metrics and both the Grafana markup-decide dashboard
+# + the sibling scientific-platform.sh's Markup layer bars silently
+# skip.
+#
+# Usage (both stacks with their overrides):
+#   docker compose -f docker-compose.yaml \
+#                  -f docker-compose.scientific-override.yaml up -d
+#     (from decision-gateway/)
+#
+#   docker compose -f docker-compose.observability.yaml \
+#                  -f docker-compose.scientific-override.yaml up -d
+#     (from pricing-observability/)
+#
+# In normal (non-collision) deployments this override is not applied;
+# the default docker-compose.observability.yaml scrapes markup-svc at
+# host.docker.internal:8080 as designed.
+
+services:
+  prometheus:
+    volumes: !override
+      - ./config/prometheus-scientific-override.yml:/etc/prometheus/prometheus.yml:ro
+      - ./config/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml:ro

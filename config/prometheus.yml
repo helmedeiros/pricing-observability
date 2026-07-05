@@ -68,6 +68,20 @@ scrape_configs:
         labels:
           service: model-registry
 
+  # funnel-sim: per-endpoint HTTP counters + histograms +
+  # funnel_event_sink_* counters. Reachable at
+  # host.docker.internal:8081 because funnel-sim runs in the platform
+  # compose (decision-gateway repo) while Prometheus runs in the
+  # observability compose. See funnel-sim ADR-0001 for the role and
+  # pricing-observability ADR-0020 for the correlation contract.
+  - job_name: funnel-sim
+    metrics_path: /metrics
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:8081"]
+        labels:
+          service: funnel-sim
+
   # pricing-metrics-aggregator: last-window gauges + run-outcome
   # counter + run-duration histogram. Feeds the pricing-metrics
   # Grafana dashboard + the pricing-metrics-aggregator AlertManager
