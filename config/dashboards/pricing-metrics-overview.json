@@ -1,0 +1,219 @@
+{
+  "title": "pricing-metrics — aggregator overview",
+  "uid": "pricing-metrics-overview",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "browser",
+  "tags": ["pricing-platform", "pricing-metrics-aggregator", "pricing-observability"],
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Conversion rate (last window)",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg by (env) (pricing_conversion_rate_last_window)",
+          "legendFormat": "{{env}}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "orange", "value": 0.05 },
+              { "color": "green",  "value": 0.10 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "GMV EUR (last window)",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (env) (pricing_gmv_last_window_eur)",
+          "legendFormat": "{{env}}"
+        }
+      ],
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "currencyEUR", "decimals": 2 }
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Impressions (last window)",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (env) (pricing_impressions_last_window)", "legendFormat": "{{env}}" }
+      ],
+      "options": {
+        "colorMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Purchases (last window)",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 5 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (env) (pricing_purchases_last_window)", "legendFormat": "{{env}}" }
+      ],
+      "options": {
+        "colorMode": "value",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+      }
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Impressions vs Purchases (env-total)",
+      "gridPos": { "x": 0, "y": 5, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (env) (pricing_impressions_last_window)",
+          "legendFormat": "{{env}} impressions"
+        },
+        {
+          "expr": "sum by (env) (pricing_purchases_last_window)",
+          "legendFormat": "{{env}} purchases"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Walkoff phases (env-total)",
+      "gridPos": { "x": 12, "y": 5, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (env) (pricing_walkoffs_at_init_last_window)",
+          "legendFormat": "{{env}} price-shock (init)"
+        },
+        {
+          "expr": "sum by (env) (pricing_walkoffs_at_reserve_last_window)",
+          "legendFormat": "{{env}} payment-friction (reserve)"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Conversion rate (env-total)",
+      "gridPos": { "x": 0, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "avg by (env) (pricing_conversion_rate_last_window)",
+          "legendFormat": "{{env}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 3 } }
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "GMV EUR (env-total)",
+      "gridPos": { "x": 12, "y": 13, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (env) (pricing_gmv_last_window_eur)",
+          "legendFormat": "{{env}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "currencyEUR", "decimals": 2 } }
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Per-arm conversion (labeled — needs --include-labels=experiment,variant)",
+      "gridPos": { "x": 0, "y": 21, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "pricing_conversion_rate_last_window_labeled{variant!=\"\"}",
+          "legendFormat": "{{env}} {{experiment}}/{{variant}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "decimals": 3 } },
+      "description": "Only populates when the aggregator runs with --include-labels including 'variant'. Empty variant tuples are hidden."
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Per-segment impressions (labeled — needs --include-labels=customer_tier,country)",
+      "gridPos": { "x": 12, "y": 21, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "pricing_impressions_last_window_labeled{customer_tier!=\"\"}",
+          "legendFormat": "{{env}} {{customer_tier}}/{{country}}"
+        }
+      ],
+      "description": "Only populates when the aggregator runs with --include-labels including customer_tier and/or country."
+    },
+    {
+      "id": 11,
+      "type": "timeseries",
+      "title": "Aggregation runs by outcome (rate)",
+      "gridPos": { "x": 0, "y": 29, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (env, outcome) (rate(pricing_metrics_aggregator_runs_total[5m]))",
+          "legendFormat": "{{env}} {{outcome}}"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Run duration percentiles",
+      "gridPos": { "x": 12, "y": 29, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le, env) (rate(pricing_metrics_aggregator_run_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{env}} p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, env) (rate(pricing_metrics_aggregator_run_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{env}} p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, env) (rate(pricing_metrics_aggregator_run_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{env}} p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    }
+  ]
+}

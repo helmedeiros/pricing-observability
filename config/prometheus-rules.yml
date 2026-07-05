@@ -240,3 +240,62 @@ groups:
           summary: "model-registry write rate-limited > 0.01/s for 5m"
           description: "Combined rate_limited rate across promotions + rollbacks is {{ $value | printf \"%.3f\" }} req/s sustained over 5m. ADR-0008's token bucket is denying writes. An operator script may be retrying without honoring Retry-After, or two operators are racing on the same env. Check the audit ledger for high-frequency repeats from a single operator."
           runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/RegistryWriteRateLimited.md"
+
+  - name: pricing-metrics-aggregator
+    interval: 30s
+    rules:
+      - alert: MetricsAggregatorRunFailureRate
+        expr: sum by (env) (rate(pricing_metrics_aggregator_runs_total{outcome="error"}[15m])) > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: pricing-metrics-aggregator
+        annotations:
+          summary: "pricing-metrics-aggregator: sustained run errors for env={{ $labels.env }}"
+          description: "One or more aggregation runs failed in the last 15m ({{ $value | printf \"%.5f\" }} error runs/s sustained over 10m). While gauges retain last-known-good, they no longer reflect current bucket state. Check MinIO reachability + credentials + Hive prefixes."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/MetricsAggregatorRunFailureRate.md"
+
+      - alert: MetricsAggregatorStale
+        expr: sum by (env) (rate(pricing_metrics_aggregator_runs_total[15m])) == 0
+        for: 15m
+        labels:
+          severity: warning
+          service: pricing-metrics-aggregator
+        annotations:
+          summary: "pricing-metrics-aggregator has not published a run in > 15m (env={{ $labels.env }})"
+          description: "The aggregator's runs_total counter has not advanced. Either the process is stuck between ticks (unlikely — /healthz would 200 anyway) or the /metrics scrape target is down. Check `up{job=\"pricing-metrics-aggregator\"}` and the container logs. The last-known-good pricing_*_last_window gauges are almost certainly stale."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/MetricsAggregatorStale.md"
+
+      - alert: PricingConversionCollapsed
+        expr: |
+          (
+            avg_over_time(pricing_conversion_rate_last_window[15m])
+            /
+            (avg_over_time(pricing_conversion_rate_last_window[4h] offset 15m) + 0.001)
+          ) < 0.5
+          and
+          avg_over_time(pricing_conversion_rate_last_window[4h] offset 15m) > 0.02
+        for: 15m
+        labels:
+          severity: warning
+          service: pricing-metrics-aggregator
+        annotations:
+          summary: "pricing conversion rate dropped >50% vs 4h baseline for env={{ $labels.env }}"
+          description: "Last-15m conversion is {{ $value | printf \"%.3f\" }}x the 4h moving average. The 4h baseline must be > 2% (guards against a cold-start baseline of 0 firing spuriously). Likely causes: rule regression, guardrails veto storm, funnel-sim / real search-svc outage, or an experiment arm winning too hard. Cross-reference with MarkupDecideErrorRateHigh + Gateway alerts."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/PricingConversionCollapsed.md"
+
+      - alert: PricingWalkoffAtInitSpike
+        expr: |
+          (
+            pricing_walkoffs_at_init_last_window
+            /
+            (pricing_impressions_last_window + 0.001)
+          ) > 0.20
+        for: 15m
+        labels:
+          severity: info
+          service: pricing-metrics-aggregator
+        annotations:
+          summary: "pricing walkoff-at-init rate > 20% for 15m (env={{ $labels.env }})"
+          description: "Walkoff-at-init measures the price-shock cohort (customer clicks, sees the price, walks). 20% sustained means either a real customer-side price-sensitivity signal or a broken booking-init handler. Cross-reference `pricing_walkoffs_at_reserve_last_window` — if it's ALSO elevated, the signal is likely upstream (search-svc / booking-svc / payment-svc); if only init is elevated, the price is the signal."
+          runbook_url: "https://github.com/helmedeiros/pricing-observability/blob/main/docs/runbooks/PricingWalkoffAtInitSpike.md"
