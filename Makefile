@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose verify-registry-obs all ci-local clean
+.PHONY: help check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose verify-registry-obs notebooks all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -57,6 +57,17 @@ ci-local: all
 #   make verify-registry-obs ARGS=/abs/path/to/model-registry
 verify-registry-obs:
 	@bash scripts/verify-registry-observability.sh $(ARGS)
+
+# Regenerate analytics/*.ipynb from the jupytext .py sources under
+# notebooks/analytics/. Requires `jupytext` on PATH (`pip install
+# jupytext`). Re-run after editing any .py source so the checked-in
+# .ipynb stays in sync — the pair keeps clean diffs on review + a
+# Colab-native deliverable side-by-side. See ADR-0021.
+notebooks:
+	@command -v jupytext >/dev/null 2>&1 || { echo "install jupytext: pip install jupytext"; exit 1; }
+	@for f in notebooks/analytics/*.py; do \
+	  jupytext --to notebook "$$f"; \
+	done
 
 clean:
 	@echo "nothing to clean"

@@ -1,0 +1,9 @@
+# Runtime deps for the Pricing Analytics notebooks. Kept minimal so a
+# Colab bootstrap fits in one !pip install line and a local venv build
+# is fast.
+duckdb>=1.0
+pandas>=2.0
+numpy>=1.24
+matplotlib>=3.7
+scipy>=1.11
+pyarrow>=14.0

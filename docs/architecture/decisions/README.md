@@ -39,3 +39,4 @@ NNNN-short-decision-name.md
 | [0018](0018-admin-paths-always-sampled.md) | Sample 100% of /admin* traces | ✅ Accepted |
 | [0019](0019-model-registry-alerts.md) | Model Registry alerting rules + exemplar storage | ✅ Accepted |
 | [0020](0020-funnel-events-correlation-contract.md) | Funnel-events correlation contract — join keys, partition layout, EDA notebook | ✅ Accepted |
+| [0021](0021-pricing-analytics-notebooks.md) | Pricing Analytics/BI — granular jupytext notebooks + Colab-compatible data loader | ✅ Accepted |
