@@ -16,7 +16,7 @@ jobs:
     name: check-adrs + validate-compose
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # GitHub Actions ubuntu-latest ships Docker preinstalled, so
       # `docker compose config` is available without a setup step.
       - run: make ci-local
