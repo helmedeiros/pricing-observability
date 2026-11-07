@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose verify-registry-obs notebooks all ci-local clean
+.PHONY: help check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose test-validate-compose verify-registry-obs notebooks all ci-local clean
 
 help:
 	@echo "Targets:"
@@ -9,6 +9,8 @@ help:
 	@echo "  check-saved-searches - verify runbook discover links resolve to NDJSON entries"
 	@echo "  check-jaeger-links   - verify runbook Jaeger deep-links are service-scoped"
 	@echo "  validate-compose - lint every docker-compose.*.yaml file via 'docker compose config'"
+	@echo "                     (override files are layered on docker-compose.observability.yaml)"
+	@echo "  test-validate-compose - run the validate-compose script tests"
 	@echo "  verify-registry-obs - LIVE-STACK: boot a registry, drive a round-trip,"
 	@echo "                        poll Jaeger + Prom + ES to prove obs data flows"
 	@echo "                        (requires the stack up + REGISTRY_BIN set; see scripts/)"
@@ -30,7 +32,10 @@ check-jaeger-links:
 validate-compose:
 	@bash scripts/validate-compose.sh
 
-all: check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose
+test-validate-compose:
+	@bash scripts/test-validate-compose.sh
+
+all: check-adrs check-runbooks check-saved-searches check-jaeger-links test-validate-compose validate-compose
 
 ci-local: all
 
