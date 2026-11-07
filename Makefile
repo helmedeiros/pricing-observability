@@ -27,22 +27,8 @@ check-saved-searches:
 check-jaeger-links:
 	@bash scripts/check-jaeger-links.sh
 
-# Walk each docker-compose.*.yaml file in the repo root and let
-# docker compose resolve the merged config. A YAML / schema /
-# unknown-key error from compose fails the step. Skipped (with a
-# notice) when docker is not on PATH so the gate stays usable on
-# minimal CI runners; the GitHub Actions image has docker
-# preinstalled so production CI still validates.
 validate-compose:
-	@for f in docker-compose*.yaml; do \
-	  [ -e "$$f" ] || continue; \
-	  if command -v docker >/dev/null 2>&1; then \
-	    echo "validate-compose: $$f"; \
-	    docker compose -f "$$f" config -q || exit 1; \
-	  else \
-	    echo "validate-compose: docker not on PATH -- skipping $$f"; \
-	  fi; \
-	done
+	@bash scripts/validate-compose.sh
 
 all: check-adrs check-runbooks check-saved-searches check-jaeger-links validate-compose
 
