@@ -6,6 +6,10 @@ DOCKER="${DOCKER:-docker}"
 BASE="${COMPOSE_BASE:-docker-compose.observability.yaml}"
 
 if ! command -v "$DOCKER" >/dev/null 2>&1; then
+  if [ -n "${CI:-}" ]; then
+    echo "validate-compose: docker not on PATH in CI -- cannot validate compose files" >&2
+    exit 1
+  fi
   for f in docker-compose*.yaml; do
     [ -e "$f" ] && echo "validate-compose: docker not on PATH -- skipping $f"
   done

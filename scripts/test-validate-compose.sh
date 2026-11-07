@@ -75,6 +75,10 @@ expect "override adding a service with no image fails" 1 \
 expect "override without a base file fails" 1 \
   "$(site override-no-base docker-compose.scientific-override.yaml "$GOOD_OVERRIDE")" "docker-compose.observability.yaml"
 
+expect "missing docker in CI fails" 1 \
+  "$(site no-docker-ci docker-compose.observability.yaml "$BASE")" "docker" \
+  DOCKER=definitely-not-docker CI=true
+
 expect "missing docker outside CI skips with a notice" 0 \
   "$(site no-docker-local docker-compose.observability.yaml "$BASE")" "skipping" \
   DOCKER=definitely-not-docker CI=
